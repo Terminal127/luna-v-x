@@ -14,6 +14,7 @@
     "@heroui/slider": "^2.4.21",
     "@heroui/system": "^2.4.20",
     "@heroui/theme": "^2.4.20",
+    "@radix-ui/react-label": "^2.1.7",
     "@tabler/icons-react": "^3.34.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

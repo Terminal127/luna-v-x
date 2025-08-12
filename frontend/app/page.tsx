@@ -10,7 +10,7 @@ import {
   IconBrandX,
   IconExchange,
   IconHome,
-  IconNewSection,
+  IconUserScan,
   IconMessageCircle,
 } from "@tabler/icons-react";
 
@@ -142,9 +142,9 @@ export function FloatingDockDemo() {
       href: "/chat",
     },
     {
-      title: "Components",
-      icon: <IconNewSection className="h-full w-full text-[#c0caf5]" />,
-      href: "/components",
+      title: "login",
+      icon: <IconUserScan className="h-full w-full text-[#c0caf5]" />,
+      href: "/login",
     },
     {
       title: "Changelog",

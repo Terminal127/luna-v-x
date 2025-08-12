@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>MCP Tab Controller</title>
+        <style>
+            body {
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    Roboto,
+                    sans-serif;
+                width: 300px;
+                padding: 12px;
+            }
+            button {
+                margin: 6px 0;
+                width: 100%;
+                padding: 8px;
+            }
+            input,
+            select {
+                width: 100%;
+                padding: 6px;
+                margin: 6px 0;
+                box-sizing: border-box;
+            }
+            #out {
+                margin-top: 8px;
+                font-size: 12px;
+                color: #444;
+                white-space: pre-wrap;
+                max-height: 200px;
+                overflow: auto;
+            }
+        </style>
+    </head>
+    <body>
+        <h3>MCP Tab Controller</h3>
+
+        <button id="btnList">List Tabs (console)</button>
+
+        <div>
+            <input
+                id="openUrl"
+                placeholder="URL to open (e.g. https://github.com)"
+            />
+            <button id="btnOpen">Open URL</button>
+        </div>
+
+        <div>
+            <input id="tabId" placeholder="Tab ID (number)" />
+            <input id="navUrl" placeholder="Navigate URL (for navigate)" />
+            <select id="cmdSelect">
+                <option value="close">Close Tab</option>
+                <option value="switch">Switch to Tab</option>
+                <option value="reload">Reload Tab</option>
+                <option value="navigate">Navigate Tab</option>
+            </select>
+            <button id="btnDo">Run</button>
+        </div>
+
+        <div id="out"></div>
+
+        <script src="popup.js"></script>
+    </body>
+</html>
