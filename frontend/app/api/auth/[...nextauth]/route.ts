@@ -1,25 +1,6 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-
-// --- DEBUGGING ---
-console.log("--- NextAuth Configuration ---");
-console.log(
-  "GOOGLE_CLIENT_ID:",
-  process.env.GOOGLE_CLIENT_ID ? "Loaded" : "NOT LOADED",
-);
-console.log(
-  "GOOGLE_CLIENT_SECRET:",
-  process.env.GOOGLE_CLIENT_SECRET ? "Loaded" : "NOT LOADED",
-);
-console.log(
-  "NEXTAUTH_SECRET:",
-  process.env.NEXTAUTH_SECRET ? "Loaded" : "NOT LOADED",
-);
-console.log(
-  "NEXTAUTH_URL:",
-  process.env.NEXTAUTH_URL ? "Loaded" : "NOT LOADED",
-);
-console.log("----------------------------");
+import GithubProvider from "next-auth/providers/github";
 
 // Check for missing critical variables
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
@@ -33,6 +14,10 @@ const handler = NextAuth({
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+    GithubProvider({
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
@@ -49,7 +34,7 @@ const handler = NextAuth({
       return session;
     },
   },
-  debug: process.env.NODE_ENV === "development", // Enable debug logs in development
+  debug: process.env.NODE_ENV === "development",
 });
 
 export { handler as GET, handler as POST };

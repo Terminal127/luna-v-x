@@ -1,0 +1,41 @@
+# Next.js
+.next/
+out/
+public/static/*
+node_modules/
+yarn-error.log
+package-lock.json
+yarn.lock
+npm-debug.log
+next-env.d.ts
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg
+*.egg-info
+dist/
+build/
+wheels/
+sdist/
+venv/
+env/
+.venv/
+my_env/
+*.log
+*.DS_Store
+.env
+.venv
+*.orig
+*.swp
+*~
+.vscode/
+.idea/
+
+# General
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+*~

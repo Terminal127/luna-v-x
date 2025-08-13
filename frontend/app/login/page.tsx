@@ -92,7 +92,12 @@ export default function LoginPage() {
             <div className="my-4 h-[1px] w-full bg-gradient-to-r from-transparent via-[#3b4261] to-transparent" />
 
             <div className="flex gap-2">
-              <SocialButton icon={<IconBrandGithub />} label="GitHub" />
+              <SocialButton
+                icon={<IconBrandGithub />}
+                label="GitHub"
+                onClick={() => signIn("github", { callbackUrl: "/chat" })} // Redirect to /chat on success
+              />
+
               {/* 2. ADD ONCLICK TO THE GOOGLE BUTTON */}
               <SocialButton
                 icon={<IconBrandGoogle />}
