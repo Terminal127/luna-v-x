@@ -201,6 +201,7 @@ export function PlaceholdersAndVanishInput({
         onKeyDown={handleKeyDown}
         ref={inputRef}
         value={value}
+        spellCheck={false}
         type="text"
         className={cn(
           "w-full relative text-sm sm:text-base z-50 border-none text-[#c0caf5] placeholder-[#565f89] bg-transparent h-full rounded-full focus:outline-none focus:ring-0 pl-4 sm:pl-10 pr-20",

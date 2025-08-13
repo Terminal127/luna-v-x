@@ -1,0 +1,8 @@
+{
+  "email": "terminalishere127@gmail.com",
+  "accessToken": "ya29.A0AS3H6NyRIouqQN0CZFr1LBaHzppsy2-FcKyo8vhqqsGAIJYz7ocJsia0R48QiVZvVxq2ukTRRyP7lNa9YXUoa0KdfKw37MtPTX1mDbv5w9Ah4GAVUVzErwYaxkOCidevxo5xyQsHRR2CzbpkywPM2GcQNo35B27UynA0n7kNX1ClGrOjb79707IrWMB6lqCHB5py500aCgYKAaISARcSFQHGX2MiCG-ci1nKtfN4zIYxbNDyuw0206",
+  "expiresAt": 1755120972,
+  "tokenType": "Bearer",
+  "scope": "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid https://www.googleapis.com/auth/gmail.send",
+  "savedAt": "2025-08-13T20:36:13.195Z"
+}

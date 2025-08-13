@@ -3,6 +3,10 @@ import CodeBlock from "./CodeBlock";
 import CustomLink from "./CustomLink";
 
 export const markdownComponents = {
+  // Handle pre elements (code blocks are wrapped in pre)
+  pre: ({ children, ...props }: any) => {
+    return <div {...props}>{children}</div>;
+  },
   code: ({ inline, className, children, ...props }: any) => {
     return !inline ? (
       <CodeBlock className={className} {...props}>

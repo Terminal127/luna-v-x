@@ -16,6 +16,11 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { twMerge } from "tailwind-merge";
 import { clsx } from "clsx";
 import MessageItem from "./MessageItem";
+import { LoaderThree } from "../../components/ui/loader";
+
+export function LoaderThreeDemo() {
+  return <LoaderThree />;
+}
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center rounded-full text-sm font-medium transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none hover:scale-105 active:scale-95",
@@ -29,6 +34,7 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-12 px-6",
+        icon: "h-7 w-7",
       },
     },
     defaultVariants: {
@@ -55,11 +61,21 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = "Button";
 
+interface ToolEvent {
+  tool: string;
+  args: { [key: string]: any };
+  duration_ms: number;
+  success: boolean;
+  error: string | null;
+  output_excerpt: string;
+}
+
 interface Message {
   id: number;
   content: string;
   role: "user" | "assistant";
   timestamp: string;
+  tool_events?: ToolEvent[];
 }
 
 export default function ChatPage() {
@@ -74,6 +90,7 @@ export default function ChatPage() {
   );
   const [typingText, setTypingText] = useState<{ [key: number]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isPageLoading, setIsPageLoading] = useState(true);
   const [typingEffectEnabled, setTypingEffectEnabled] = useState(true);
 
   const flipWords = ["helpful", "creative", "intelligent", "powerful"];
@@ -108,6 +125,11 @@ export default function ChatPage() {
         setApiStatus("connected");
       } catch (error) {
         setApiStatus("error");
+      } finally {
+        // Simulate a delay for demonstration purposes
+        setTimeout(() => {
+          setIsPageLoading(false);
+        }, 1000); // Adjust the delay as needed
       }
     };
     initSession();
@@ -161,13 +183,13 @@ export default function ChatPage() {
       });
       animate(chatLayoutRef.current, {
         justifyContent: ["center", "flex-end"],
-        duration: 700,
+        duration: 200,
         easing: "easeInOutSine",
       });
       animate(chatWrapperRef.current, {
         maxHeight: ["0vh", "100vh"],
         opacity: [0, 1],
-        duration: 700,
+        duration: 500,
         easing: "easeInOutSine",
       });
     }
@@ -218,16 +240,18 @@ export default function ChatPage() {
       setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
 
-      const { response: aiResponse } = await generateAssistantResponse(
-        messageText,
-        sessionId,
-      );
+      // Capture tool_events from the response
+      const { response: aiResponse, tool_events } =
+        await generateAssistantResponse(messageText, sessionId);
       const assistantId = Date.now() + 1;
+
+      // Pass tool_events to the new message object
       const assistantMessage: Message = {
         id: assistantId,
-        content: "",
+        content: aiResponse || "Sorry, I had an issue generating a response.",
         role: "assistant",
         timestamp: new Date().toISOString(),
+        tool_events: tool_events,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -279,6 +303,17 @@ export default function ChatPage() {
     setCurrentGeneratingId(null);
   }, [currentGeneratingId, typingText]);
 
+  if (isPageLoading) {
+    return (
+      <div
+        className="relative min-h-screen w-full overflow-hidden flex items-center justify-center"
+        style={{ background: "#1a1b26" }}
+      >
+        <LoaderThreeDemo />
+      </div>
+    );
+  }
+
   return (
     <div
       className="relative min-h-screen w-full overflow-hidden"
@@ -322,9 +357,11 @@ export default function ChatPage() {
             <div
               className="flex-1 rounded-2xl shadow-2xl flex flex-col min-h-0"
               style={{
-                background: "rgba(36, 40, 59, 0.6)",
+                // background: "rgba(36, 40, 59, 0.6)",
+                // this is the code where the chat container is defined
+                background: "transparent",
                 border: "1px solid #414868",
-                backdropFilter: "blur(12px)",
+                // backdropFilter: "blur(12px)",
               }}
             >
               <div
@@ -344,7 +381,7 @@ export default function ChatPage() {
           </div>
 
           <div className="flex-shrink-0 pt-4">
-            <div className="flex items-center gap-3">
+            <div className="relative flex items-center gap-3">
               <div className="flex-1">
                 <PlaceholdersAndVanishInput
                   placeholders={placeholders}
@@ -356,13 +393,11 @@ export default function ChatPage() {
 
               {/* ✅ MODIFIED: The toggle switch is now conditionally rendered */}
               {messages.length > 0 && (
-                <div className="flex items-center gap-2 transition-opacity duration-500">
+                <div className="flex items-center gap-2 mr-3 transition-opacity duration-500">
                   <span
                     className="text-sm text-neutral-400 font-sans"
                     htmlFor="typing-switch"
-                  >
-                    Animate
-                  </span>
+                  ></span>
                   <label className="switch">
                     <input
                       id="typing-switch"
@@ -379,12 +414,13 @@ export default function ChatPage() {
                 <Button
                   onClick={handleStopGeneration}
                   variant="destructive"
-                  size="default"
-                  className="gap-2"
+                  size="icon" // Use the new "icon" size
                   title="Stop generation"
+                  // Add absolute positioning classes
+                  className="absolute right-20 top-1/2 -translate-y-1/2"
                 >
                   <span className="loading-spinner"></span>
-                  <span className="hidden md:inline">Stop</span>
+                  {/* REMOVE THE TEXT SPAN: <span className="hidden md:inline">Stop</span> */}
                 </Button>
               )}
             </div>
