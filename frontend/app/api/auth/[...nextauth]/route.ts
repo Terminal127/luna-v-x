@@ -143,7 +143,7 @@ const handler = NextAuth({
           const sanitizedEmail = session.user.email
             .replace("@", "_at_")
             .replace(/\./g, "_");
-          const filename = `google_token_${sanitizedEmail}.json`;
+          const filename = `google_token.json`;
           const filePath = path.join(tokensDir, filename);
 
           const tokenData = {

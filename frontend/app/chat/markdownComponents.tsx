@@ -23,7 +23,7 @@ export const markdownComponents = {
   },
   a: (props: any) => <CustomLink {...props} />,
   p: (props: any) => (
-    <p
+    <div
       className="mb-4 text-sm leading-relaxed text-gray-100 whitespace-pre-wrap"
       {...props}
     />

@@ -105,12 +105,16 @@ const MessageItem = React.memo(function MessageItem({
 
             {currentGeneratingId === message.id ? (
               <div className="typing-content">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={markdownComponents as any}
-                >
-                  {typingText[message.id] || ""}
-                </ReactMarkdown>
+                {typingText[message.id] ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={markdownComponents as any}
+                  >
+                    {typingText[message.id]}
+                  </ReactMarkdown>
+                ) : (
+                  <span className="loading loading-dots loading-xs"></span>
+                )}
               </div>
             ) : (
               <ReactMarkdown
