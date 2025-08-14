@@ -17,6 +17,8 @@ from dotenv import load_dotenv
 import warnings
 import asyncio
 import websockets
+import base64
+import html
 from typing import Dict, Any, Optional, List
 
 warnings.filterwarnings("ignore", message="Convert_system_message_to_human will be deprecated!")
@@ -587,6 +589,196 @@ def chrome_tab_controller(
     except Exception as e:
         return json.dumps({"error": f"An unexpected error occurred: {e}"}, indent=2)
 
+## the gmail tool
+@tool
+def read_gmail_messages(top=5):
+    """Main function to read Gmail messages with all helper functions defined inside"""
+    top = int(top)
+    # Initialize the result string
+    result_string = ""
+
+    def decode_base64_url(data):
+        """Decode base64url-encoded data"""
+        # Add padding if needed
+        missing_padding = len(data) % 4
+        if missing_padding:
+            data += '=' * (4 - missing_padding)
+
+        # Replace URL-safe characters
+        data = data.replace('-', '+').replace('_', '/')
+
+        try:
+            return base64.b64decode(data).decode('utf-8')
+        except:
+            return "[Unable to decode content]"
+
+    def extract_message_body(payload):
+        """Extract the message body from Gmail API payload"""
+        body = ""
+
+        # Handle multipart messages
+        if 'parts' in payload:
+            for part in payload['parts']:
+                if part['mimeType'] == 'text/plain' and 'data' in part['body']:
+                    body += decode_base64_url(part['body']['data'])
+                elif part['mimeType'] == 'text/html' and 'data' in part['body']:
+                    html_content = decode_base64_url(part['body']['data'])
+                    # You might want to strip HTML tags here
+                    body += f"\n[HTML Content]: {html_content[:200]}..." if len(html_content) > 200 else f"\n[HTML Content]: {html_content}"
+                elif 'parts' in part:  # Nested parts
+                    body += extract_message_body(part)
+
+        # Handle simple messages (not multipart)
+        elif 'data' in payload.get('body', {}):
+            body = decode_base64_url(payload['body']['data'])
+
+        return body
+
+    def get_attachments_info(payload):
+        """Extract attachment information"""
+        attachments = []
+
+        def process_parts(parts):
+            for part in parts:
+                if part.get('filename'):
+                    attachment_info = {
+                        'filename': part['filename'],
+                        'mimeType': part['mimeType'],
+                        'size': part['body'].get('size', 0)
+                    }
+                    attachments.append(attachment_info)
+
+                if 'parts' in part:
+                    process_parts(part['parts'])
+
+        if 'parts' in payload:
+            process_parts(payload['parts'])
+
+        return attachments
+
+    # Main execution starts here
+    # Read tokens from file
+    with open("/home/anubhav/courses/luna-version-x/frontend/saved-tokens/google_token_terminalishere127_at_gmail_com.json", "r") as f:
+        data = json.load(f)
+
+    access_token = data["accessToken"]
+
+    # Step 1: Get list of messages
+    list_url = "https://gmail.googleapis.com/gmail/v1/users/me/messages"
+    params = {
+        "maxResults": top,
+        "labelIds": "INBOX"
+    }
+
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    list_response = requests.get(list_url, headers=headers, params=params)
+
+    if list_response.status_code != 200:
+        error_msg = f"Error fetching messages: {list_response.status_code} {list_response.text}"
+        result_string += error_msg + "\n"
+        return result_string
+
+    messages = list_response.json().get("messages", [])
+    result_string += f"Found {len(messages)} messages\n\n"
+
+    # Step 2: Fetch detailed information for each message
+    for i, msg in enumerate(messages, 1):
+        msg_id = msg["id"]
+
+        # Use 'full' format to get complete message data
+        detail_url = f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{msg_id}"
+        detail_params = {"format": "full"}
+
+        detail_response = requests.get(detail_url, headers=headers, params=detail_params)
+
+        if detail_response.status_code != 200:
+            error_msg = f"Error fetching message {i} details: {detail_response.status_code} {detail_response.text}"
+            result_string += error_msg + "\n"
+            continue
+
+        msg_data = detail_response.json()
+
+        # Extract all available headers
+        headers_list = msg_data.get("payload", {}).get("headers", [])
+
+        # Create a dictionary of headers for easy access
+        email_headers = {h["name"]: h["value"] for h in headers_list}
+
+        # Extract key information
+        subject = email_headers.get("Subject", "(No Subject)")
+        sender = email_headers.get("From", "(No Sender)")
+        recipient = email_headers.get("To", "(No Recipient)")
+        date = email_headers.get("Date", "(No Date)")
+        cc = email_headers.get("Cc", "")
+        bcc = email_headers.get("Bcc", "")
+        reply_to = email_headers.get("Reply-To", "")
+        message_id = email_headers.get("Message-ID", "")
+
+        # Extract message body
+        payload = msg_data.get("payload", {})
+        body = extract_message_body(payload)
+
+        # Get attachments info
+        attachments = get_attachments_info(payload)
+
+        # Get snippet
+        snippet = msg_data.get("snippet", "").strip()
+
+        # Get labels
+        label_ids = msg_data.get("labelIds", [])
+
+        # Get thread ID
+        thread_id = msg_data.get("threadId", "")
+
+        # Print comprehensive information
+        result_string += f"{'='*80}\n"
+        result_string += f"MESSAGE {i} - ID: {msg_id}\n"
+        result_string += f"{'='*80}\n"
+        result_string += f"📧 Subject: {subject}\n"
+        result_string += f"👤 From: {sender}\n"
+        result_string += f"👥 To: {recipient}\n"
+        if cc:
+            result_string += f"📋 CC: {cc}\n"
+        if bcc:
+            result_string += f"📋 BCC: {bcc}\n"
+        if reply_to:
+            result_string += f"↩️  Reply-To: {reply_to}\n"
+        result_string += f"📅 Date: {date}\n"
+        result_string += f"🆔 Message ID: {message_id}\n"
+        result_string += f"🧵 Thread ID: {thread_id}\n"
+        result_string += f"🏷️  Labels: {', '.join(label_ids)}\n"
+
+        result_string += f"\n📄 SNIPPET:\n"
+        result_string += f"{snippet}\n"
+
+        result_string += f"\n📃 FULL BODY:\n"
+        result_string += "-" * 40 + "\n"
+        if body.strip():
+            result_string += (body[:1000] + "..." if len(body) > 1000 else body) + "\n"  # Limit body length for readability
+        else:
+            result_string += "[No plain text body found]\n"
+
+        if attachments:
+            result_string += f"\n📎 ATTACHMENTS ({len(attachments)}):\n"
+            for att in attachments:
+                result_string += f"  • {att['filename']} ({att['mimeType']}, {att['size']} bytes)\n"
+
+        # Show additional headers (optional)
+        result_string += f"\n📋 ALL HEADERS:\n"
+        result_string += "-" * 40 + "\n"
+        for header_name, header_value in email_headers.items():
+            if header_name not in ['Subject', 'From', 'To', 'Date', 'Cc', 'Bcc', 'Reply-To', 'Message-ID']:
+                result_string += f"{header_name}: {header_value}\n"
+
+        result_string += "\n" + "="*80 + "\n\n"
+
+    result_string += "✅ Email extraction completed!\n"
+    return result_string
+
+
 # List of available tools
 tools = [
     get_current_time,
@@ -598,6 +790,7 @@ tools = [
     task_planner,
     youtube_search,
     chrome_tab_controller,
+    read_gmail_messages
 ]
 
 def load_chat_history():
@@ -673,7 +866,7 @@ def setup_agent_executor(model):
     """Setup the LangChain agent executor with tools and chat history"""
     # Create agent prompt with scratchpad
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an intelligent AI assistant. Your primary goal is to provide helpful, accurate, and direct responses to user queries.
+        ("system", """You are an intelligent AI named Luna assistant. Your primary goal is to provide helpful, accurate, and direct responses to user queries.
 
 CRITICAL INSTRUCTIONS (Tool Governance & Response Policy):
 1. Answer from knowledge first: For general questions, explanations, definitions, coding help, conceptual reasoning, or widely known facts, respond directly from your internal knowledge. DO NOT call tools when you already know the answer with high confidence.
@@ -694,7 +887,11 @@ CRITICAL INSTRUCTIONS (Tool Governance & Response Policy):
    - Only call `youtube_search` if the user requests discovering/finding videos, playlists, channels, montages, highlight reels, or explicitly says "YouTube", "YT", "video search".
    - If user wants general info (e.g. “Explain Valorant agents”), answer directly—do NOT search.
    - Never fabricate YouTube results; if tool not used, clearly state you did not perform a live search.
-5. Tool decision protocol:
+5. Gmail message reading:
+   - Only call `read_gmail_messages` if the user explicitly asks to read their Gmail messages.
+   - If user wants general info (e.g. “Explain Gmail usage”), answer directly—do NOT read messages.
+   - Never fabricate Gmail messages; if tool not used, clearly state you did not perform a live read.
+6. Tool decision protocol:
    - BEFORE calling a tool, internally verify: (a) Is a tool strictly required? (b) Is there explicit user intent? If not both, answer directly.
 6. Output integrity:
    - Never claim to have executed a tool you didn’t actually call.
