@@ -1,8 +1,8 @@
 {
   "email": "terminalishere127@gmail.com",
-  "accessToken": "ya29.A0AS3H6NzQXk3zM4pcGK5ZY3WgNdf_YzTM1Meg3fYWeyIfQumq_geSMPc_pxWQDCx9sUok9KB7cGSYCEZtp9F70m_A7F-LJUaI7ef0zjrcVCibu6Go8yvzG6XvwbKSe-iyVxKvItpjl3MuseehBq5BO2X9fyVysIey4oBAmFkWQQAnzawq0-_NqpqJzmnckoudHBiPr_-NaCgYKAc4SARcSFQHGX2MilMkt3F_7aTbOs2b4EZHjDw0207",
-  "expiresAt": 1755173887,
+  "accessToken": "ya29.A0AS3H6NxG4tn7lDNmuvz3eZVXGgKEXGCuBvZ3spoY1Se6Ho_syCxxdRzHCGaqKtvtIKut2Sk3jRXFVHykdPjP8LDbqA5RFhs84bNfv0F7kHm16BgwVzZ1dykn5PmytRq6CHs7T4VanBoUh106xikxEqXQ88r6nIJGmMakhWceQQHRbFLIpxggGVERBx-2iPnVUDZKhE2haCgYKAYkSARcSFQHGX2MiHJaR4WZheiB4xJ4hcR3pcQ0207",
+  "expiresAt": 1755189011,
   "tokenType": "Bearer",
-  "scope": "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid",
-  "savedAt": "2025-08-14T11:18:09.000Z"
+  "scope": "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.readonly openid",
+  "savedAt": "2025-08-14T15:30:13.421Z"
 }

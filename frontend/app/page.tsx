@@ -1,9 +1,11 @@
 "use client";
 
-import React from "react";
+import { DrawableAnimation } from "@/components/ui/DrawableAnimation";
+import React, { useState, useEffect } from "react";
 import { BackgroundBeams } from "../components/ui/background-beams";
 import { FloatingDock } from "../components/ui/floating-dock";
 import { Timeline } from "@/components/ui/timeline";
+import { cn } from "@/lib/utils";
 
 import {
   IconBrandGithub,
@@ -122,7 +124,7 @@ export function TimelineDemo() {
   ];
 
   return (
-    <div className="relative w-full overflow-hidden">
+    <div className="relative w-full">
       <Timeline data={data} />
     </div>
   );
@@ -172,39 +174,79 @@ export function FloatingDockDemo() {
   );
 }
 
-/* ---------------- PAGE ---------------- */
+/* ---------------- MAIN PAGE COMPONENT ---------------- */
 export default function Page() {
+  const [isIntroVisible, setIsIntroVisible] = useState(true);
+
+  useEffect(() => {
+    // Hide the intro animation after a delay
+    const timer = setTimeout(() => {
+      setIsIntroVisible(false);
+    }, 2000); // Adjust duration as needed
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Effect to control body scrolling
+  useEffect(() => {
+    if (isIntroVisible) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
+    // Cleanup function to restore scroll on component unmount
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, [isIntroVisible]);
+
   return (
-    <div className="bg-[#1a1b26]">
-      {/* HERO SECTION */}
-      <section className="relative h-screen flex flex-col items-center justify-center overflow-hidden">
-        {/* Floating Dock */}
-        <div className="absolute top-12 left-1/2 transform -translate-x-1/2 z-50">
-          <FloatingDockDemo />
+    <div className="relative min-h-screen bg-[#1a1b26]">
+      {/* 1. Intro Animation Overlay - Changed to `fixed` */}
+      <div
+        className={cn(
+          "fixed inset-0 z-50 flex items-center justify-center bg-[#1a1b26] transition-opacity duration-1000",
+          isIntroVisible ? "opacity-100" : "opacity-0 pointer-events-none", // Fade out and disable clicks
+        )}
+      >
+        <div className="w-full max-w-2xl">
+          <DrawableAnimation />
         </div>
+      </div>
 
-        {/* Main Hero Content */}
-        <div className="max-w-3xl mx-auto p-10 text-center relative z-10">
-          <h1 className="text-lg md:text-6xl lg:text-7xl bg-clip-text text-transparent bg-gradient-to-b from-[#c0caf5] to-[#7aa2f7] font-sans font-bold tracking-tight">
-            Welcome to <span className="text-[#bb9af7]">Luna</span> — Version X
-          </h1>
-          <p className="text-[#a9b1d6] max-w-xl mx-auto my-6 text-base md:text-lg leading-relaxed">
-            This time, it’s{" "}
-            <span className="text-[#7dcfff] font-medium">Agentic</span>. No more
-            rigid if-else chains — Luna adapts, decides, and acts. You don’t
-            just give commands — you collaborate with a mind that sees the path
-            ahead.
-          </p>
-        </div>
+      {/* 2. Main Page Content - Fades in */}
+      <div
+        className={cn(
+          "transition-opacity duration-1000",
+          isIntroVisible ? "opacity-0" : "opacity-100",
+        )}
+      >
+        {/* HERO SECTION */}
+        <section className="relative h-screen flex flex-col items-center justify-center overflow-hidden">
+          <div className="absolute top-12 left-1/2 transform -translate-x-1/2 z-50">
+            <FloatingDockDemo />
+          </div>
+          <div className="max-w-3xl mx-auto p-10 text-center relative z-10">
+            <h1 className="text-lg md:text-6xl lg:text-7xl bg-clip-text text-transparent bg-gradient-to-b from-[#c0caf5] to-[#7aa2f7] font-sans font-bold tracking-tight">
+              Welcome to <span className="text-[#bb9af7]">Luna</span> — Version
+              X
+            </h1>
+            <p className="text-[#a9b1d6] max-w-xl mx-auto my-6 text-base md:text-lg leading-relaxed">
+              This time, it’s{" "}
+              <span className="text-[#7dcfff] font-medium">Agentic</span>. No
+              more rigid if-else chains — Luna adapts, decides, and acts. You
+              don’t just give commands — you collaborate with a mind that sees
+              the path ahead.
+            </p>
+          </div>
+          <BackgroundBeams />
+        </section>
 
-        {/* Background Beams */}
-        <BackgroundBeams />
-      </section>
-
-      {/* TIMELINE SECTION */}
-      <section className="relative z-10 w-full py-20 bg-[#1a1b26]">
-        <TimelineDemo />
-      </section>
+        {/* TIMELINE SECTION */}
+        <section className="relative z-10 w-full py-20 bg-[#1a1b26]">
+          <TimelineDemo />
+        </section>
+      </div>
     </div>
   );
 }
