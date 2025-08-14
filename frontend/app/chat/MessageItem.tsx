@@ -3,6 +3,7 @@ import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { IconUser, IconRobot } from "@tabler/icons-react";
+import { useSession } from "next-auth/react";
 import { markdownComponents } from "./markdownComponents";
 import ToolExecutionDetails from "./ToolExecutionDetails";
 import MessageCopyButton from "./MessageCopyButton";
@@ -33,20 +34,50 @@ const MessageItem = React.memo(function MessageItem({
   currentGeneratingId: number | null;
   typingText: { [key: number]: string };
 }) {
+  const { data: session } = useSession();
   const isUser = message.role === "user";
   const chatAlignment = isUser ? "chat-end" : "chat-start";
-  const userName = isUser ? "You" : "Luna";
+  const userName = isUser ? session?.user?.name || "You" : "Luna";
 
   return (
     <div className={`chat ${chatAlignment}`} data-message-id={message.id}>
       <div className="chat-image avatar">
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center"
-          style={{
-            backgroundColor: isUser ? "#7aa2f7" : "#9ece6a",
-            color: "#1a1b26",
-          }}
-        ></div>
+        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center">
+          {isUser ? (
+            session?.user?.image ? (
+              <img
+                src={session.user.image}
+                alt={session.user?.name || "User"}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.style.display = "none";
+                  const fallback = target.nextElementSibling as HTMLElement;
+                  if (fallback) fallback.style.display = "flex";
+                }}
+              />
+            ) : null
+          ) : (
+            <img
+              src="https://i.pinimg.com/1200x/80/da/fd/80dafd10e7f0aead92234fcd232fcbd2.jpg"
+              alt="Luna Assistant"
+              className="w-full h-full object-cover"
+            />
+          )}
+          {/* Fallback for user if image fails */}
+          {isUser && (
+            <div
+              className="w-full h-full rounded-full flex items-center justify-center"
+              style={{
+                backgroundColor: "#7aa2f7",
+                color: "#1a1b26",
+                display: session?.user?.image ? "none" : "flex",
+              }}
+            >
+              <IconUser size={20} />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="chat-header" style={{ color: "#c0caf5" }}>
