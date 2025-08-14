@@ -12,6 +12,8 @@ import {
   User2,
 } from "lucide-react";
 
+import { useSession } from "next-auth/react";
+
 import {
   Sidebar,
   SidebarHeader,
@@ -54,6 +56,8 @@ const items = [
 ];
 
 export function ChatSidebar() {
+  const { data: session } = useSession();
+
   return (
     <Sidebar side="left" variant="floating" collapsible="offcanvas">
       <SidebarContent>
@@ -107,7 +111,41 @@ export function ChatSidebar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton>
-                  <User2 /> User
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      {session?.user?.image ? (
+                        <>
+                          <img
+                            src={session.user.image}
+                            alt={session.user?.name || "User"}
+                            className="w-6 h-6 rounded-full object-cover"
+                            onError={(e) => {
+                              console.log(
+                                "Image failed to load:",
+                                session.user?.image,
+                              );
+                              const target = e.currentTarget;
+                              target.style.display = "none";
+                              // Show fallback icon
+                              const fallback =
+                                target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.style.display = "block";
+                            }}
+                            onLoad={() => {
+                              console.log(
+                                "Image loaded successfully:",
+                                session.user?.image,
+                              );
+                            }}
+                          />
+                          <User2 className="w-6 h-6 hidden" />
+                        </>
+                      ) : (
+                        <User2 className="w-6 h-6" />
+                      )}
+                    </div>
+                    <span>{session?.user?.name || "User"}</span>
+                  </div>
                   <ChevronUp className="ml-auto" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>

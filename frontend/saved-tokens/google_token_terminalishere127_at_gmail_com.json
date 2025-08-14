@@ -1,8 +1,10 @@
 {
   "email": "terminalishere127@gmail.com",
-  "accessToken": "ya29.A0AS3H6NxG4tn7lDNmuvz3eZVXGgKEXGCuBvZ3spoY1Se6Ho_syCxxdRzHCGaqKtvtIKut2Sk3jRXFVHykdPjP8LDbqA5RFhs84bNfv0F7kHm16BgwVzZ1dykn5PmytRq6CHs7T4VanBoUh106xikxEqXQ88r6nIJGmMakhWceQQHRbFLIpxggGVERBx-2iPnVUDZKhE2haCgYKAYkSARcSFQHGX2MiHJaR4WZheiB4xJ4hcR3pcQ0207",
-  "expiresAt": 1755189011,
+  "name": "Terminal Terminal",
+  "image": "https://lh3.googleusercontent.com/a/ACg8ocIuiaQG8AG685TOTK94_qiD-5r0xj1TNm7bG6inKXUyz0Ovhz8=s96-c",
+  "accessToken": "ya29.A0AS3H6NwGws7ueQXAQqcdA5XMllD1e-slbbwrvR-GOsXtZdbfPCD9jatqUtOJC7cxHeWQDahyEQFyvJGH1iiGnJ1owjt-1frmk-U5v5Qmmh03b3rOPwV5IBb0fGCbbVloUiSZ6ax5pan050zJUq0MkvD4WkpOKkCBCoN7i-87LHX04mdTg3CJdVUTo2wxPYxWtxmj0cqTaCgYKAc4SARcSFQHGX2Miz_uHmZ81dYyT_EdmnsEbdg0207",
+  "expiresAt": 1755193483,
   "tokenType": "Bearer",
-  "scope": "https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/gmail.readonly openid",
-  "savedAt": "2025-08-14T15:30:13.421Z"
+  "scope": "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
+  "savedAt": "2025-08-14T16:50:26.078Z"
 }
