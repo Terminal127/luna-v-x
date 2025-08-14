@@ -1,7 +1,8 @@
 "use client";
 
-import React from "react";
-import { signIn } from "next-auth/react";
+import React, { useEffect } from "react";
+import { signIn, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { BackgroundBeams } from "@/components/ui/background-beams";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -14,10 +15,33 @@ import {
 
 // --- MAIN PAGE COMPONENT ---
 export default function LoginPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  // Redirect authenticated users to chat
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.push("/chat");
+    }
+  }, [status, router]);
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     console.log("Form submitted");
   };
+
+  // Don't render login form if user is already authenticated
+  if (status === "loading") {
+    return (
+      <main className="relative min-h-screen w-full bg-[#1a1b26] flex items-center justify-center">
+        <div className="text-[#c0caf5]">Loading...</div>
+      </main>
+    );
+  }
+
+  if (status === "authenticated") {
+    return null; // Will redirect in useEffect
+  }
 
   return (
     <main className="relative min-h-screen w-full bg-[#1a1b26] flex items-center justify-center p-4 overflow-hidden">

@@ -69,14 +69,14 @@
     --chart-3: #9ece6a;
     --chart-4: #e0af68;
     --chart-5: #f7768e;
-    --sidebar: #ffffff;
-    --sidebar-foreground: #1a1b26;
+    --sidebar: #16161e;
+    --sidebar-foreground: #c0caf5;
     --sidebar-primary: #7aa2f7;
     --sidebar-primary-foreground: #1a1b26;
-    --sidebar-accent: #bb9af7;
-    --sidebar-accent-foreground: #1a1b26;
-    --sidebar-border: #e5e7eb;
-    --sidebar-ring: #565f89;
+    --sidebar-accent: #24283b;
+    --sidebar-accent-foreground: #c0caf5;
+    --sidebar-border: #414868;
+    --sidebar-ring: #7aa2f7;
 }
 
 .dark {
@@ -103,14 +103,14 @@
     --chart-3: #9ece6a;
     --chart-4: #e0af68;
     --chart-5: #f7768e;
-    --sidebar: #24283b;
+    --sidebar: #16161e;
     --sidebar-foreground: #c0caf5;
     --sidebar-primary: #7aa2f7;
     --sidebar-primary-foreground: #1a1b26;
-    --sidebar-accent: #bb9af7;
-    --sidebar-accent-foreground: #1a1b26;
-    --sidebar-border: #3b4261;
-    --sidebar-ring: #565f89;
+    --sidebar-accent: #292e42;
+    --sidebar-accent-foreground: #c0caf5;
+    --sidebar-border: #414868;
+    --sidebar-ring: #7aa2f7;
 }
 
 @layer base {
@@ -185,4 +185,151 @@
         0px 2px 3px -1px rgba(0, 0, 0, 0.1),
         0px 1px 0px 0px rgba(25, 28, 33, 0.02),
         0px 0px 0px 1px rgba(25, 28, 33, 0.08);
+}
+
+/* Tokyo Night Sidebar Animations and Effects */
+@keyframes tokyo-glow {
+    0%,
+    100% {
+        box-shadow: 0 0 5px rgba(122, 162, 247, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(122, 162, 247, 0.6);
+    }
+}
+
+@keyframes pulse-purple {
+    0%,
+    100% {
+        box-shadow: 0 0 5px rgba(187, 154, 247, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 15px rgba(187, 154, 247, 0.5);
+    }
+}
+
+@keyframes float {
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-2px);
+    }
+}
+
+/* Tokyo Night color glow effects */
+.tokyo-blue-glow {
+    transition: all 0.3s ease;
+}
+
+.tokyo-blue-glow:hover {
+    box-shadow: 0 0 15px rgba(122, 162, 247, 0.4);
+}
+
+.tokyo-purple-glow {
+    transition: all 0.3s ease;
+}
+
+.tokyo-purple-glow:hover {
+    box-shadow: 0 0 15px rgba(187, 154, 247, 0.4);
+}
+
+.tokyo-green-glow {
+    transition: all 0.3s ease;
+}
+
+.tokyo-green-glow:hover {
+    box-shadow: 0 0 15px rgba(158, 206, 106, 0.4);
+}
+
+.tokyo-orange-glow {
+    transition: all 0.3s ease;
+}
+
+.tokyo-orange-glow:hover {
+    box-shadow: 0 0 15px rgba(224, 175, 104, 0.4);
+}
+
+.tokyo-red-glow {
+    transition: all 0.3s ease;
+}
+
+.tokyo-red-glow:hover {
+    box-shadow: 0 0 15px rgba(247, 118, 142, 0.4);
+}
+
+/* Sidebar scroll animations */
+.sidebar-animate-in {
+    animation: slideInFromLeft 0.5s ease-out;
+}
+
+@keyframes slideInFromLeft {
+    0% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Menu item stagger animation */
+.menu-item-stagger {
+    animation: fadeInUp 0.6s ease-out both;
+}
+
+@keyframes fadeInUp {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Tokyo Night backdrop blur effect */
+.tokyo-backdrop {
+    backdrop-filter: blur(8px) saturate(150%);
+    background: rgba(22, 22, 30, 0.85);
+}
+
+/* Custom scrollbar for sidebar */
+.sidebar-scroll::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+    background: rgba(65, 72, 104, 0.2);
+    border-radius: 2px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(122, 162, 247, 0.4);
+    border-radius: 2px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(122, 162, 247, 0.6);
+}
+
+/* Reduce spacing between sidebar menu items */
+[data-sidebar] [data-sidebar-menu] {
+    gap: 2px;
+}
+
+[data-sidebar] [data-sidebar-menu-item] {
+    margin: 0;
+}
+
+/* Override default sidebar spacing */
+.sidebar-menu-compact {
+    gap: 1px !important;
+}
+
+.sidebar-menu-compact > * {
+    margin: 0 !important;
 }

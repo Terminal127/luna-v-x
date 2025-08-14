@@ -7,6 +7,8 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { BackgroundBeams } from "../../components/ui/background-beams";
 import { PlaceholdersAndVanishInput } from "../../components/ui/placeholders-and-vanish-input";
 import { FlipWords } from "../../components/ui/flip-words";
@@ -17,6 +19,8 @@ import { twMerge } from "tailwind-merge";
 import { clsx } from "clsx";
 import MessageItem from "./MessageItem";
 import { LoaderThree } from "../../components/ui/loader";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { ChatSidebar } from "../../components/chat-sidebar";
 
 export function LoaderThreeDemo() {
   return <LoaderThree />;
@@ -79,6 +83,9 @@ interface Message {
 }
 
 export default function ChatPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
   const [sessionId, setSessionId] = useState<string>("");
@@ -92,6 +99,8 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [typingEffectEnabled, setTypingEffectEnabled] = useState(true);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
 
   const flipWords = ["helpful", "creative", "intelligent", "powerful"];
 
@@ -112,7 +121,16 @@ export default function ChatPage() {
     [],
   );
 
+  // Authentication check
   useEffect(() => {
+    if (status === "loading") return; // Still loading
+
+    if (status === "unauthenticated") {
+      router.push("/login");
+      return;
+    }
+
+    // User is authenticated, proceed with session initialization
     const initSession = async () => {
       try {
         await fetch("http://localhost:8000/health");
@@ -132,25 +150,55 @@ export default function ChatPage() {
         }, 1000); // Adjust the delay as needed
       }
     };
-    initSession();
-  }, []);
+
+    if (status === "authenticated") {
+      initSession();
+    }
+  }, [status, router]);
 
   const smoothScrollToBottom = useCallback(() => {
     if (!chatContainerRef.current) return;
-    setTimeout(() => {
+    requestAnimationFrame(() => {
       if (chatContainerRef.current) {
-        animate(chatContainerRef.current, {
-          scrollTop: chatContainerRef.current.scrollHeight,
-          duration: 500,
-          easing: "easeOutCubic",
+        chatContainerRef.current.scrollTo({
+          top: chatContainerRef.current.scrollHeight,
+          behavior: "smooth",
         });
       }
-    }, 0);
+    });
   }, []);
 
   useEffect(() => {
+    // Always scroll to bottom when messages change or typing updates
     smoothScrollToBottom();
   }, [messages, typingText, smoothScrollToBottom]);
+
+  // Ensure scrolling during message generation
+  useEffect(() => {
+    if (currentGeneratingId !== null && typingText[currentGeneratingId]) {
+      smoothScrollToBottom();
+    }
+  }, [typingText, currentGeneratingId, smoothScrollToBottom]);
+
+  // Handle scroll detection to show/hide scroll-to-bottom button
+  useEffect(() => {
+    const chatContainer = chatContainerRef.current;
+    if (!chatContainer) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px threshold
+      setShowScrollToBottom(!isAtBottom);
+
+      // Reset new messages count when user manually scrolls to bottom
+      if (isAtBottom) {
+        setNewMessagesCount(0);
+      }
+    };
+
+    chatContainer.addEventListener("scroll", handleScroll);
+    return () => chatContainer.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     const newMessagesCount = messages.length - lastMessageCountRef.current;
@@ -171,27 +219,33 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (messages.length === 1 && chatLayoutRef.current) {
-      animate(welcomeHeaderRef.current, {
-        opacity: 0,
-        duration: 400,
-        easing: "easeOutCubic",
-        complete: () => {
-          if (welcomeHeaderRef.current) {
-            welcomeHeaderRef.current.style.display = "none";
-          }
-        },
-      });
-      animate(chatLayoutRef.current, {
-        justifyContent: ["center", "flex-end"],
-        duration: 200,
-        easing: "easeInOutSine",
-      });
-      animate(chatWrapperRef.current, {
-        maxHeight: ["0vh", "100vh"],
-        opacity: [0, 1],
-        duration: 500,
-        easing: "easeInOutSine",
-      });
+      if (welcomeHeaderRef.current) {
+        animate(welcomeHeaderRef.current, {
+          opacity: 0,
+          duration: 400,
+          easing: "easeOutCubic",
+          complete: () => {
+            if (welcomeHeaderRef.current) {
+              welcomeHeaderRef.current.style.display = "none";
+            }
+          },
+        });
+      }
+      if (chatLayoutRef.current) {
+        animate(chatLayoutRef.current, {
+          justifyContent: ["center", "flex-end"],
+          duration: 200,
+          easing: "easeInOutSine",
+        });
+      }
+      if (chatWrapperRef.current) {
+        animate(chatWrapperRef.current, {
+          maxHeight: ["0vh", "100vh"],
+          opacity: [0, 1],
+          duration: 500,
+          easing: "easeInOutSine",
+        });
+      }
     }
   }, [messages.length]);
 
@@ -240,6 +294,15 @@ export default function ChatPage() {
       setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
 
+      // Immediately scroll to bottom for new user message
+      setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop =
+            chatContainerRef.current.scrollHeight;
+          setShowScrollToBottom(false);
+        }
+      }, 0);
+
       // Capture tool_events from the response
       const { response: aiResponse, tool_events } =
         await generateAssistantResponse(messageText, sessionId);
@@ -258,6 +321,15 @@ export default function ChatPage() {
       setCurrentGeneratingId(assistantId);
       setIsLoading(false);
 
+      // Scroll to bottom for new assistant message
+      setTimeout(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop =
+            chatContainerRef.current.scrollHeight;
+          setShowScrollToBottom(false);
+        }
+      }, 0);
+
       if (typingEffectEnabled) {
         const words = aiResponse.split(" ");
         let currentText = "";
@@ -265,6 +337,23 @@ export default function ChatPage() {
           if (words.length > 0) {
             currentText += (currentText ? " " : "") + words.shift();
             setTypingText((prev) => ({ ...prev, [assistantId]: currentText }));
+            // Immediate scroll during typing like Claude
+            requestAnimationFrame(() => {
+              if (chatContainerRef.current) {
+                chatContainerRef.current.scrollTop =
+                  chatContainerRef.current.scrollHeight;
+                setShowScrollToBottom(false); // Hide scroll button when auto-scrolling
+
+                // If user is scrolled up, increment new messages count
+                const { scrollTop, scrollHeight, clientHeight } =
+                  chatContainerRef.current;
+                const isAtBottom =
+                  scrollTop + clientHeight >= scrollHeight - 50;
+                if (!isAtBottom) {
+                  setNewMessagesCount((prev) => prev + 1);
+                }
+              }
+            });
           } else {
             if (typingIntervalRef.current)
               clearInterval(typingIntervalRef.current);
@@ -274,6 +363,11 @@ export default function ChatPage() {
               ),
             );
             setCurrentGeneratingId(null);
+            setTypingText((prev) => {
+              const newState = { ...prev };
+              delete newState[assistantId];
+              return newState;
+            });
           }
         }, 50);
       } else {
@@ -303,7 +397,8 @@ export default function ChatPage() {
     setCurrentGeneratingId(null);
   }, [currentGeneratingId, typingText]);
 
-  if (isPageLoading) {
+  // Show loading while checking authentication or initializing
+  if (status === "loading" || isPageLoading) {
     return (
       <div
         className="relative min-h-screen w-full overflow-hidden flex items-center justify-center"
@@ -314,118 +409,163 @@ export default function ChatPage() {
     );
   }
 
-  return (
-    <div
-      className="relative min-h-screen w-full overflow-hidden"
-      style={{ background: "#1a1b26" }}
-    >
-      <BackgroundBeams />
-      <div
-        ref={chatLayoutRef}
-        className="relative z-10 flex flex-col h-screen p-4 md:p-8"
-        style={{ justifyContent: "center" }}
-      >
-        <div
-          className={`w-full max-w-6xl mx-auto flex flex-col ${
-            messages.length > 0 ? "h-full" : "h-auto"
-          }`}
-        >
-          <div
-            ref={welcomeHeaderRef}
-            className="text-center mb-4 flex-shrink-0"
-          >
-            <div
-              className="text-3xl md:text-6xl font-bold mb-6"
-              style={{ color: "#c0caf5" }}
-            >
-              Chat with a
-              <FlipWords words={flipWords} className="text-white" />
-              Luna
-            </div>
-            <p className="text-neutral-400 mt-2">
-              {apiStatus === "connecting"
-                ? "Connecting..."
-                : "How can I help you today?"}
-            </p>
-          </div>
+  // If not authenticated, don't render anything (redirect is handled in useEffect)
+  if (status === "unauthenticated") {
+    return null;
+  }
 
+  return (
+    <SidebarProvider defaultOpen={false}>
+      <div
+        className="h-screen w-full flex overflow-hidden"
+        style={{ background: "#1a1b26" }}
+      >
+        <ChatSidebar />
+        <main className="flex-1 flex flex-col h-full overflow-hidden">
+          <BackgroundBeams />
           <div
-            ref={chatWrapperRef}
-            className="flex-1 flex flex-col min-h-0"
-            style={{ opacity: 0, maxHeight: "0vh" }}
+            ref={chatLayoutRef}
+            className="relative z-10 flex flex-col h-full p-4 md:p-8 min-h-0"
+            style={{ justifyContent: "center" }}
           >
+            <SidebarTrigger className="fixed top-4 left-4 z-50 text-[#c0caf5]/60 hover:text-[#c0caf5] hover:bg-[#24283b] rounded p-2 transition-colors" />
             <div
-              className="flex-1 rounded-2xl shadow-2xl flex flex-col min-h-0"
-              style={{
-                // background: "rgba(36, 40, 59, 0.6)",
-                // this is the code where the chat container is defined
-                background: "transparent",
-                border: "1px solid #414868",
-                // backdropFilter: "blur(12px)",
-              }}
+              className={`w-full max-w-6xl mx-auto flex flex-col ${
+                messages.length > 0 ? "h-full" : "h-auto"
+              } min-h-0`}
             >
               <div
-                ref={chatContainerRef}
-                className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 chat-container"
+                ref={welcomeHeaderRef}
+                className="text-center mb-4 flex-shrink-0"
               >
-                {messages.map((message) => (
-                  <MessageItem
-                    key={message.id}
-                    message={message}
-                    currentGeneratingId={currentGeneratingId}
-                    typingText={typingText}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-shrink-0 pt-4">
-            <div className="relative flex items-center gap-3">
-              <div className="flex-1">
-                <PlaceholdersAndVanishInput
-                  placeholders={placeholders}
-                  onChange={handleChange}
-                  onSubmit={onSubmit}
-                  ref={inputRef}
-                />
+                <div
+                  className="text-3xl md:text-6xl font-bold mb-6"
+                  style={{ color: "#c0caf5" }}
+                >
+                  Chat with a
+                  <FlipWords words={flipWords} className="text-white" />
+                  Luna
+                </div>
+                <p className="text-neutral-400 mt-2">
+                  {apiStatus === "connecting"
+                    ? "Connecting..."
+                    : "How can I help you today?"}
+                </p>
               </div>
 
-              {/* ✅ MODIFIED: The toggle switch is now conditionally rendered */}
-              {messages.length > 0 && (
-                <div className="flex items-center gap-2 mr-3 transition-opacity duration-500">
-                  <span
-                    className="text-sm text-neutral-400 font-sans"
-                    htmlFor="typing-switch"
-                  ></span>
-                  <label className="switch">
-                    <input
-                      id="typing-switch"
-                      type="checkbox"
-                      checked={typingEffectEnabled}
-                      onChange={(e) => setTypingEffectEnabled(e.target.checked)}
+              <div
+                ref={chatWrapperRef}
+                className="flex-1 flex flex-col min-h-0"
+                style={{ opacity: 0, maxHeight: "0vh" }}
+              >
+                <div
+                  className="flex-1 rounded-2xl shadow-2xl flex flex-col min-h-0"
+                  style={{
+                    // background: "rgba(36, 40, 59, 0.6)",
+                    // this is the code where the chat container is defined
+                    background: "transparent",
+                    border: "1px solid #414868",
+                    // backdropFilter: "blur(12px)",
+                  }}
+                >
+                  <div
+                    ref={chatContainerRef}
+                    className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 chat-container"
+                  >
+                    {messages.map((message) => (
+                      <MessageItem
+                        key={message.id}
+                        message={message}
+                        currentGeneratingId={currentGeneratingId}
+                        typingText={typingText}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex-shrink-0 pt-4">
+                <div className="relative flex items-center gap-3">
+                  <div className="flex-1">
+                    <PlaceholdersAndVanishInput
+                      placeholders={placeholders}
+                      onChange={handleChange}
+                      onSubmit={onSubmit}
                     />
-                    <span className="slider"></span>
-                  </label>
+                  </div>
+
+                  {/* ✅ MODIFIED: The toggle switch is now conditionally rendered */}
+                  {messages.length > 0 && (
+                    <div className="flex items-center gap-2 mr-3 transition-opacity duration-500">
+                      <span className="text-sm text-neutral-400 font-sans"></span>
+                      <label className="switch">
+                        <input
+                          id="typing-switch"
+                          type="checkbox"
+                          checked={typingEffectEnabled}
+                          onChange={(e) =>
+                            setTypingEffectEnabled(e.target.checked)
+                          }
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+                  )}
+
+                  {currentGeneratingId !== null && (
+                    <Button
+                      onClick={handleStopGeneration}
+                      variant="destructive"
+                      size="icon" // Use the new "icon" size
+                      title="Stop generation"
+                      // Add absolute positioning classes
+                      className="absolute right-20 top-1/2 -translate-y-1/2"
+                    >
+                      <span className="loading-spinner"></span>
+                      {/* REMOVE THE TEXT SPAN: <span className="hidden md:inline">Stop</span> */}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Scroll to Bottom Button */}
+              {showScrollToBottom && (
+                <div className="absolute bottom-20 right-4 z-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="relative">
+                    <Button
+                      onClick={() => {
+                        smoothScrollToBottom();
+                        setNewMessagesCount(0);
+                      }}
+                      size="icon"
+                      className="bg-[#24283b]/90 hover:bg-[#292e42] text-[#c0caf5] shadow-2xl hover:shadow-[#7aa2f7]/20 transition-all duration-300 rounded-full backdrop-blur-sm border border-[#414868]/50 hover:border-[#7aa2f7]/50 w-10 h-10"
+                      title={`Scroll to bottom${newMessagesCount > 0 ? ` (${newMessagesCount} new)` : ""}`}
+                    >
+                      <svg
+                        className="size-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                        />
+                      </svg>
+                    </Button>
+                    {newMessagesCount > 0 && (
+                      <div className="absolute -top-2 -right-2 bg-[#7aa2f7] text-white text-xs rounded-full min-w-[1.25rem] h-5 flex items-center justify-center px-1 font-medium shadow-lg">
+                        {newMessagesCount > 99 ? "99+" : newMessagesCount}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-
-              {currentGeneratingId !== null && (
-                <Button
-                  onClick={handleStopGeneration}
-                  variant="destructive"
-                  size="icon" // Use the new "icon" size
-                  title="Stop generation"
-                  // Add absolute positioning classes
-                  className="absolute right-20 top-1/2 -translate-y-1/2"
-                >
-                  <span className="loading-spinner"></span>
-                  {/* REMOVE THE TEXT SPAN: <span className="hidden md:inline">Stop</span> */}
-                </Button>
-              )}
             </div>
           </div>
-        </div>
+        </main>
       </div>
       <style jsx>{`
         .loading-spinner {
@@ -498,6 +638,6 @@ export default function ChatPage() {
           background: rgba(122, 162, 247, 0.7);
         }
       `}</style>
-    </div>
+    </SidebarProvider>
   );
 }
