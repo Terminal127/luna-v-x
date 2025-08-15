@@ -130,6 +130,16 @@
       "type": "ai",
       "content": "I apologize, but I'm still unable to retrieve your most recent email due to an authentication error. It seems I don't have the necessary permissions. Please make sure I am properly authenticated to access your Gmail.",
       "timestamp": "2025-08-15T03:35:23.578153"
+    },
+    {
+      "type": "human",
+      "content": "Hello",
+      "timestamp": "2025-08-15T03:35:23.578129"
+    },
+    {
+      "type": "ai",
+      "content": "Hello there! How can I help you today?\n",
+      "timestamp": "2025-08-15T14:03:38.847820"
     }
   ]
 }

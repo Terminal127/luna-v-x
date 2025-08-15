@@ -23,7 +23,7 @@ Assumptions:
     - save_chat_history()
     - get_chat_history(session_id)
     - global 'tools' list
-- GOOGLE_API_KEY is set in environment (.env loaded automatically if present)
+- MODEL_API_KEY is set in environment (.env loaded automatically if present)
 
 To run:
     uvicorn api_server:app --host 0.0.0.0 --port 8000
@@ -51,9 +51,10 @@ from pydantic import BaseModel, Field
 from pathlib import Path
 
 try:
-    from dotenv import load_dotenv
+    from dotenv import load_dotenv, set_key
 except ImportError:  # optional
     load_dotenv = lambda *_, **__: None  # type: ignore
+    set_key = lambda *_, **__: None  # type: ignore
 
 # LangChain callback base (attempt new import path first)
 try:
@@ -101,6 +102,7 @@ class ToolEvent:
         self.end = time.time()
         text = str(output)
         self.output_excerpt = text[:200] + ("..." if len(text) > 200 else "")
+
 
     def fail(self, err: Exception):
         self.end = time.time()
@@ -178,6 +180,18 @@ class SessionHistoryResponse(BaseModel):
     session_id: str
     messages: List[HistoryMessage]
     count: int
+
+
+class ModelConfigRequest(BaseModel):
+    api_key: Optional[str] = Field(None, description="New Google API key")
+    model_name: Optional[str] = Field(None, description="Model name (e.g., gemini-1.5-flash)")
+    temperature: Optional[float] = Field(None, description="Model temperature (0.0-1.0)")
+
+
+class ModelConfigResponse(BaseModel):
+    success: bool
+    message: str
+    current_config: Dict[str, Any]
 
 
 # -----------------------------------------------------------------------------
@@ -267,6 +281,37 @@ def new_session_id() -> str:
     return str(uuid.uuid4())
 
 
+def update_env_file(key: str, value: str):
+    """Update environment variable in .env file"""
+    try:
+        # Look for .env file in current directory or parent directory
+        env_file = Path(".env")
+        if not env_file.exists():
+            env_file = Path("../.env")
+        if not env_file.exists():
+            env_file = Path(".env")  # Create in current directory
+
+        set_key(str(env_file), key, value)
+        print(f"✅ Updated {key} in {env_file}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to update .env file: {e}")
+        return False
+
+def reinitialize_model():
+    """Force reinitialize the model and agent with new settings"""
+    global _model, _agent_with_history
+    with _init_lock:
+        _model = None
+        _agent_with_history = None
+        backend.load_chat_history()
+        _model = backend.setup_model()
+        if _model:
+            _agent_with_history = backend.setup_agent_executor(_model)
+            return True
+    return False
+
+
 # -----------------------------------------------------------------------------
 # Routes
 # -----------------------------------------------------------------------------
@@ -326,6 +371,113 @@ def get_history(session_id: str, limit: int = 100):
         role = "user" if m.type == "human" else "assistant"
         out.append(HistoryMessage(role=role, content=m.content, timestamp=None))
     return SessionHistoryResponse(session_id=session_id, messages=out, count=len(out))
+
+
+@router.post("/config/model", response_model=ModelConfigResponse)
+def update_model_config(config: ModelConfigRequest):
+    """Update API key and model configuration"""
+    try:
+        updated_settings = {}
+
+        # Update environment variables in memory AND persist to .env file
+        if config.api_key:
+            os.environ["MODEL_API_KEY"] = config.api_key
+            update_env_file("MODEL_API_KEY", config.api_key)
+            updated_settings["api_key"] = "***" + config.api_key[-4:] if len(config.api_key) > 4 else "***"
+
+        if config.model_name:
+            os.environ["MODEL_NAME"] = config.model_name
+            update_env_file("MODEL_NAME", config.model_name)
+            updated_settings["model_name"] = config.model_name
+
+        if config.temperature is not None:
+            os.environ["TEMPERATURE"] = str(config.temperature)
+            update_env_file("TEMPERATURE", str(config.temperature))
+            updated_settings["temperature"] = config.temperature
+
+        # Reinitialize the model with new settings
+        if reinitialize_model():
+            current_config = {
+                "model_name": os.getenv("MODEL_NAME", "gemini-1.5-flash"),
+                "temperature": float(os.getenv("TEMPERATURE", "0.3")),
+                "api_key": "***" + os.getenv("MODEL_API_KEY", "")[-4:] if os.getenv("MODEL_API_KEY") else "Not set",
+                "model_initialized": _model is not None
+            }
+
+            return ModelConfigResponse(
+                success=True,
+                message=f"Model configuration updated successfully: {', '.join(updated_settings.keys())}",
+                current_config=current_config
+            )
+        else:
+            return ModelConfigResponse(
+                success=False,
+                message="Failed to reinitialize model. Please check your API key.",
+                current_config={}
+            )
+
+    except Exception as e:
+        return ModelConfigResponse(
+            success=False,
+            message=f"Error updating configuration: {str(e)}",
+            current_config={}
+        )
+
+
+@router.get("/config/model", response_model=ModelConfigResponse)
+def get_model_config():
+    """Get current model configuration"""
+    try:
+        current_config = {
+            "model_name": os.getenv("MODEL_NAME", "gemini-1.5-flash"),
+            "temperature": float(os.getenv("TEMPERATURE", "0.3")),
+            "api_key": "***" + os.getenv("MODEL_API_KEY", "")[-4:] if os.getenv("MODEL_API_KEY") else "Not set",
+            "model_initialized": _model is not None
+        }
+
+        return ModelConfigResponse(
+            success=True,
+            message="Current model configuration",
+            current_config=current_config
+        )
+    except Exception as e:
+        return ModelConfigResponse(
+            success=False,
+            message=f"Error getting configuration: {str(e)}",
+            current_config={}
+        )
+
+
+@router.get("/debug/routes")
+def debug_routes():
+    """Debug endpoint to check if router is working"""
+    return {
+        "message": "Router is working!",
+        "available_endpoints": [
+            "/api/chat",
+            "/api/session",
+            "/api/config/model",
+            "/api/debug/routes"
+        ]
+    }
+
+
+@router.get("/debug/env")
+def debug_env():
+    """Debug endpoint to check environment variables"""
+    return {
+        "environment_variables": {
+            "MODEL_API_KEY": "***" + os.getenv("MODEL_API_KEY", "NOT_SET")[-4:] if os.getenv("MODEL_API_KEY") else "NOT_SET",
+            "MODEL_NAME": os.getenv("MODEL_NAME", "NOT_SET"),
+            "TEMPERATURE": os.getenv("TEMPERATURE", "NOT_SET"),
+        },
+        "model_status": {
+            "initialized": _model is not None,
+            "agent_initialized": _agent_with_history is not None,
+        },
+        "process_id": os.getpid(),
+        "current_working_directory": os.getcwd(),
+    }
 
 
 @app.get("/health")

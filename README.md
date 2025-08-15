@@ -44,7 +44,7 @@ pip install -r requirements.txt
 
 # Set up your environment variables
 cp .env.example .env
-# Edit .env and add your GOOGLE_API_KEY
+# Edit .env and add your MODEL_API_KEY
 
 # Start the server
 python api_server.py
@@ -71,7 +71,7 @@ The client will start at `http://localhost:3000` and should open automatically i
 Create a `.env` file in the `langchain` directory:
 
 ```env
-GOOGLE_API_KEY=your_gemini_api_key_here
+MODEL_API_KEY=your_gemini_api_key_here
 APP_NAME=Luna Version X
 PORT=8000
 UVICORN_RELOAD=false

@@ -21,6 +21,8 @@ import MessageItem from "./MessageItem";
 import { LoaderThree } from "../../components/ui/loader";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ChatSidebar } from "../../components/chat-sidebar";
+import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 
 export function LoaderThreeDemo() {
   return <LoaderThree />;
@@ -156,6 +158,20 @@ export default function ChatPage() {
     }
   }, [status, router]);
 
+  // Periodic token refresh every 5 minutes
+  useEffect(() => {
+    const interval = setInterval(
+      async () => {
+        if (status === "authenticated") {
+          console.log("🔄 Periodic token refresh check...");
+          await getSession();
+        }
+      },
+      5 * 60 * 1000,
+    ); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [status]);
   const smoothScrollToBottom = useCallback(() => {
     if (!chatContainerRef.current) return;
     requestAnimationFrame(() => {
@@ -273,6 +289,28 @@ export default function ChatPage() {
       };
     }
   };
+
+  const handleTypingEffectChange = useCallback((enabled: boolean) => {
+    setTypingEffectEnabled(enabled);
+
+    if (!enabled) {
+      // When typing effect is disabled, show toast with undo option
+      toast("Typing effect disabled", {
+        description: "Messages will appear instantly",
+        action: {
+          label: "Undo",
+          onClick: () => {
+            setTypingEffectEnabled(true);
+            toast.success("Typing effect restored!");
+          },
+        },
+        duration: 5000, // 5 seconds to allow undo
+      });
+    } else {
+      // Optional: Show brief confirmation when enabled
+      toast.success("Typing effect enabled");
+    }
+  }, []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setCurrentMessage(e.target.value);
@@ -526,14 +564,13 @@ export default function ChatPage() {
 
                   {messages.length > 0 && (
                     <div className="flex items-center gap-2 mr-3 transition-opacity duration-500">
-                      <span className="text-sm text-neutral-400 font-sans"></span>
                       <label className="switch">
                         <input
                           id="typing-switch"
                           type="checkbox"
                           checked={typingEffectEnabled}
                           onChange={(e) =>
-                            setTypingEffectEnabled(e.target.checked)
+                            handleTypingEffectChange(e.target.checked)
                           }
                         />
                         <span className="slider"></span>
@@ -664,6 +701,7 @@ export default function ChatPage() {
           background: rgba(122, 162, 247, 0.7);
         }
       `}</style>
+      <Toaster position="top-right" /> {/* Add this at the end */}
     </SidebarProvider>
   );
 }
