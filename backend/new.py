@@ -658,7 +658,7 @@ def read_gmail_messages(top=5):
 
     # Main execution starts here
     # Read tokens from file
-    with open("/home/anubhav/courses/luna-version-x/frontend/saved-tokens/google_token_terminalishere127_at_gmail_com.json", "r") as f:
+    with open("/home/anubhav/courses/luna-version-x/frontend/saved-tokens/google_token.json", "r") as f:
         data = json.load(f)
 
     access_token = data["accessToken"]
@@ -826,11 +826,32 @@ def save_chat_history():
         data = {'session_id': session_id, 'messages': []}
 
         if session_id in chatmap:
+            # Load existing data to preserve original timestamps
+            existing_messages = []
+            if os.path.exists(HISTORY_FILE):
+                try:
+                    with open(HISTORY_FILE, 'r') as f:
+                        existing_data = json.load(f)
+                        existing_messages = existing_data.get('messages', [])
+                except:
+                    pass
+
+            # Create mapping of existing messages to their timestamps
+            existing_timestamp_map = {}
+            for existing_msg in existing_messages:
+                key = f"{existing_msg['type']}:{existing_msg['content']}"
+                if key not in existing_timestamp_map:
+                    existing_timestamp_map[key] = existing_msg['timestamp']
+
             for msg in chatmap[session_id].messages:
+                key = f"{msg.type}:{msg.content}"
+                # Use existing timestamp if message exists, otherwise create new one
+                timestamp = existing_timestamp_map.get(key, datetime.now().isoformat())
+
                 data['messages'].append({
                     'type': msg.type,
                     'content': msg.content,
-                    'timestamp': datetime.now().isoformat()
+                    'timestamp': timestamp
                 })
 
         with open(HISTORY_FILE, 'w') as f:

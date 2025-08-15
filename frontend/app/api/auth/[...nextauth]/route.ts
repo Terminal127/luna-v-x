@@ -13,6 +13,7 @@ if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
 
 // Function to refresh Google access token
 async function refreshGoogleToken(refreshToken: string): Promise<any> {
+  console.log("🔄 Starting token refresh...");
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -28,12 +29,16 @@ async function refreshGoogleToken(refreshToken: string): Promise<any> {
     });
 
     const tokens = await response.json();
+    console.log("🔄 Token refresh response status:", response.status);
 
     if (!response.ok) {
+      console.error("❌ Token refresh failed:", tokens);
       throw new Error(
         `Token refresh failed: ${tokens.error_description || tokens.error}`,
       );
     }
+
+    console.log("✅ Token refresh successful!");
 
     return {
       accessToken: tokens.access_token,
@@ -53,7 +58,7 @@ const handler = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          prompt: "select_account",
+          prompt: "consent",
           access_type: "offline",
           scope:
             "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
@@ -65,7 +70,7 @@ const handler = NextAuth({
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
       authorization: {
         params: {
-          prompt: "select_account",
+          prompt: "consent",
           access_type: "offline",
         },
       },
@@ -91,16 +96,54 @@ const handler = NextAuth({
         };
       }
 
-      // Return previous token if access token has not expired yet
-      if (Date.now() < (token.expiresAt as number) * 1000) {
-        return token;
+      // If no refresh token in current token, try to load from saved file
+      if (!token.refreshToken && token.email) {
+        try {
+          const tokensDir = path.join(process.cwd(), "saved-tokens");
+          const filePath = path.join(tokensDir, "google_token.json");
+
+          if (existsSync(filePath)) {
+            const savedTokenData = JSON.parse(readFileSync(filePath, "utf8"));
+            if (
+              savedTokenData.refreshToken &&
+              savedTokenData.email === token.email
+            ) {
+              console.log("🔄 Restored refresh token from saved file");
+              token.refreshToken = savedTokenData.refreshToken;
+            }
+          }
+        } catch (error) {
+          console.error("❌ Error loading saved refresh token:", error);
+        }
       }
 
-      // Access token has expired, try to refresh it
-      if (token.refreshToken && token.provider === "google") {
+      // Check if token needs refresh (5 minutes before expiry)
+      const timeUntilExpiry = (token.expiresAt as number) * 1000 - Date.now();
+      const minutesUntilExpiry = Math.floor(timeUntilExpiry / 60000);
+      const refreshThreshold = 53 * 60 * 1000; // 5 minutes in milliseconds
+
+      console.log(`🔍 Token check: ${minutesUntilExpiry} minutes until expiry`);
+      console.log(
+        `🔍 Debug - timeUntilExpiry: ${timeUntilExpiry}ms, threshold: ${refreshThreshold}ms`,
+      );
+      console.log(`🔍 Debug - refreshToken exists: ${!!token.refreshToken}`);
+      console.log(`🔍 Debug - provider: ${token.provider}`);
+
+      // Refresh token if it expires within 22 minutes
+      if (
+        timeUntilExpiry <= refreshThreshold &&
+        token.refreshToken &&
+        token.provider === "google"
+      ) {
+        console.log(`🔄 Token expires soon for google! Refreshing...`);
         try {
           const refreshedTokens = await refreshGoogleToken(
             token.refreshToken as string,
+          );
+
+          const newExpiryTime = new Date(refreshedTokens.expiresAt * 1000);
+          console.log(
+            `🎉 Token refreshed successfully! New expiry: ${newExpiryTime.toLocaleString()}`,
           );
 
           return {
@@ -113,9 +156,14 @@ const handler = NextAuth({
             email: token.email,
           };
         } catch (error) {
-          console.error("Error refreshing access token", error);
+          console.error("❌ Error refreshing access token", error);
           return { ...token, error: "RefreshAccessTokenError" };
         }
+      }
+
+      // Token is still valid
+      if (timeUntilExpiry > refreshThreshold) {
+        console.log(`✅ Token still valid for ${minutesUntilExpiry} minutes`);
       }
 
       return token;
@@ -160,8 +208,12 @@ const handler = NextAuth({
           };
 
           writeFileSync(filePath, JSON.stringify(tokenData, null, 2));
+
+          const expiryTime = new Date((token.expiresAt as number) * 1000);
+          console.log(`💾 Token saved for: ${session.user.email}`);
+          console.log(`📅 Token expires at: ${expiryTime.toLocaleString()}`);
           console.log(
-            `✅ Token refreshed and saved for: ${session.user.email}`,
+            `🔑 Access token preview: ${String(token.accessToken).substring(0, 20)}...`,
           );
         } catch (error) {
           console.error("❌ Error saving refreshed token:", error);

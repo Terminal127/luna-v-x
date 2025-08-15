@@ -1,8 +1,0 @@
-{
-  "email": "22051145@kiit.ac.in",
-  "accessToken": "ya29.A0AS3H6NyR9CcQCZOujwt3i1Ota6EdCc_Xt-Br1WZSSWQf0dvDsYdPN6M0bIqbx42eaW-v82ysUOSSe87zQVXxPBpdU1hvqDuIfJR7WglgcX04kWpb2aF9M38hTkouXvGVGDefBpyg_-hy7hHtYQ8RkPqVrzXvkKo8UvD0bhD-FOD35DFekw0ApnLKTQYIXtWyCgwgnOwaCgYKAXQSARQSFQHGX2MiCqK85hG0Y7Zm4cI9YwT15w0206",
-  "expiresAt": 1755172461,
-  "tokenType": "Bearer",
-  "scope": "https://www.googleapis.com/auth/gmail.send openid https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly",
-  "savedAt": "2025-08-14T10:54:22.315Z"
-}

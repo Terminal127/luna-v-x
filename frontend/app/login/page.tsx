@@ -3,7 +3,7 @@
 import React, { useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { BackgroundBeams } from "@/components/ui/background-beams";
+import { ThreeDMarquee } from "@/components/ui/3d-marquee";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,41 @@ import {
 export default function LoginPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  // Array of images for the 3D Marquee background - full array but limited display
+  const images = [
+    "https://wallpapers-clan.com/wp-content/uploads/2025/07/anime-crescent-moon-over-forest-desktop-wallpaper-preview.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/04/blue-starry-night-sky-desktop-wallpaper-preview.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/09/fireplace-in-winter-forest-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2025/02/majestic-mountain-moonlight-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2023/12/magic-winter-forest-blue-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/05/snow-landscape-winter-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/12/frozen-lake-winter-scenery-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2023/11/snow-covered-forest-river-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/12/frozen-lake-winter-scenery-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/04/blue-starry-night-sky-desktop-wallpaper-preview.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2025/03/watercolor-sky-with-shooting-stars-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/09/fireplace-in-winter-forest-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2023/12/magic-winter-forest-blue-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/05/snow-landscape-winter-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/12/frozen-lake-winter-scenery-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2023/11/snow-covered-forest-river-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2025/07/anime-crescent-moon-over-forest-desktop-wallpaper-preview.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/04/blue-starry-night-sky-desktop-wallpaper-preview.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2025/03/watercolor-sky-with-shooting-stars-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2025/02/majestic-mountain-moonlight-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/09/fireplace-in-winter-forest-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/05/snow-landscape-winter-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/12/frozen-lake-winter-scenery-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2023/11/snow-covered-forest-river-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2025/07/anime-crescent-moon-over-forest-desktop-wallpaper-preview.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/04/blue-starry-night-sky-desktop-wallpaper-preview.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/09/fireplace-in-winter-forest-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2025/02/majestic-mountain-moonlight-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2023/12/magic-winter-forest-blue-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/05/snow-landscape-winter-desktop-wallpaper-cover.jpg",
+    "https://wallpapers-clan.com/wp-content/uploads/2024/12/frozen-lake-winter-scenery-desktop-wallpaper-cover.jpg",
+  ];
 
   // Redirect authenticated users to chat
   useEffect(() => {
@@ -44,105 +79,107 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="relative min-h-screen w-full bg-[#1a1b26] flex items-center justify-center p-4 overflow-hidden">
-      {/* Login Form */}
-      <div className="w-full z-10 md:w-2xl flex justify-center">
-        <div className="shadow-lg mx-auto w-full max-w-sm rounded-xl bg-[#1f2335]/95 backdrop-blur-md p-5 md:p-6 border border-[#3b4261]">
-          <h2 className="text-xl font-bold text-[#c0caf5]">
-            Welcome to Luna-V-X
-          </h2>
-          <p className="mt-1 text-xs text-[#a9b1d6]">
-            Login to experience the next gen agentic browsing.
-          </p>
-
-          <form className="my-6 space-y-3" onSubmit={handleSubmit}>
-            <div className="flex flex-col md:flex-row gap-2">
-              <LabelInputContainer className="flex-1">
-                <Label className="text-[#7aa2f7]" htmlFor="firstname">
-                  First name
-                </Label>
-                <Input
-                  className="bg-[#24283b] border border-[#3b4261] text-[#c0caf5] placeholder-[#565f89]"
-                  id="firstname"
-                  placeholder="Tyler"
-                  type="text"
-                />
-              </LabelInputContainer>
-              <LabelInputContainer className="flex-1">
-                <Label className="text-[#7aa2f7]" htmlFor="lastname">
-                  Last name
-                </Label>
-                <Input
-                  className="bg-[#24283b] border border-[#3b4261] text-[#c0caf5] placeholder-[#565f89]"
-                  id="lastname"
-                  placeholder="Durden"
-                  type="text"
-                />
-              </LabelInputContainer>
-            </div>
-
-            <LabelInputContainer>
-              <Label className="text-[#7aa2f7]" htmlFor="email">
-                Email Address
-              </Label>
-              <Input
-                className="bg-[#24283b] border border-[#3b4261] text-[#c0caf5] placeholder-[#565f89]"
-                id="email"
-                placeholder="projectmayhem@fc.com"
-                type="email"
-              />
-            </LabelInputContainer>
-
-            <LabelInputContainer>
-              <Label className="text-[#7aa2f7]" htmlFor="password">
-                Password
-              </Label>
-              <Input
-                className="bg-[#24283b] border border-[#3b4261] text-[#c0caf5] placeholder-[#565f89]"
-                id="password"
-                placeholder="••••••••"
-                type="password"
-              />
-            </LabelInputContainer>
-
-            <button
-              className="group/btn relative block h-9 w-full rounded-md bg-gradient-to-br from-[#7aa2f7] to-[#bb9af7] font-medium text-sm text-white shadow-md hover:from-[#2ac3de] hover:to-[#9ece6a] transition"
-              type="submit"
-            >
-              Sign up &rarr;
-              <BottomGradient />
-            </button>
-
-            <div className="my-4 h-[1px] w-full bg-gradient-to-r from-transparent via-[#3b4261] to-transparent" />
-
-            <div className="flex gap-2">
-              <SocialButton
-                icon={<IconBrandGithub />}
-                label="GitHub"
-                onClick={() => signIn("github", { callbackUrl: "/chat" })} // Redirect to /chat on success
-              />
-
-              {/* 2. ADD ONCLICK TO THE GOOGLE BUTTON */}
-              <SocialButton
-                icon={<IconBrandGoogle />}
-                label="Google"
-                onClick={() => signIn("google", { callbackUrl: "/chat" })} // Redirect to /chat on success
-              />
-              <SocialButton icon={<IconBrandOnlyfans />} label="OnlyFans" />
-            </div>
-          </form>
-        </div>
+    <main className="relative min-h-screen w-full bg-[#1a1b26] overflow-hidden">
+      {/* 3D Marquee Background - Fixed positioning */}
+      <div className="fixed inset-0 w-full h-full z-0">
+        <ThreeDMarquee images={images} />
       </div>
 
-      {/* Background Beams Component */}
-      <BackgroundBeams />
+      {/* Content Container */}
+      <div className="relative z-10 min-h-screen w-full flex items-center justify-center p-4">
+        {/* Login Form */}
+        <div className="w-full md:w-2xl flex justify-center">
+          <div className="shadow-lg mx-auto w-full max-w-sm rounded-xl bg-[#1f2335]/95 backdrop-blur-md p-5 md:p-6 border border-[#3b4261]">
+            <h2 className="text-xl font-bold text-[#c0caf5]">
+              Welcome to Luna-V-X
+            </h2>
+            <p className="mt-1 text-xs text-[#a9b1d6]">
+              Login to experience the next gen agentic browsing.
+            </p>
+
+            <form className="my-6 space-y-3" onSubmit={handleSubmit}>
+              <div className="flex flex-col md:flex-row gap-2">
+                <LabelInputContainer className="flex-1">
+                  <Label className="text-[#7aa2f7]" htmlFor="firstname">
+                    First name
+                  </Label>
+                  <Input
+                    className="bg-[#24283b] border border-[#3b4261] text-[#c0caf5] placeholder-[#565f89]"
+                    id="firstname"
+                    placeholder="Tyler"
+                    type="text"
+                  />
+                </LabelInputContainer>
+                <LabelInputContainer className="flex-1">
+                  <Label className="text-[#7aa2f7]" htmlFor="lastname">
+                    Last name
+                  </Label>
+                  <Input
+                    className="bg-[#24283b] border border-[#3b4261] text-[#c0caf5] placeholder-[#565f89]"
+                    id="lastname"
+                    placeholder="Durden"
+                    type="text"
+                  />
+                </LabelInputContainer>
+              </div>
+
+              <LabelInputContainer>
+                <Label className="text-[#7aa2f7]" htmlFor="email">
+                  Email Address
+                </Label>
+                <Input
+                  className="bg-[#24283b] border border-[#3b4261] text-[#c0caf5] placeholder-[#565f89]"
+                  id="email"
+                  placeholder="projectmayhem@fc.com"
+                  type="email"
+                />
+              </LabelInputContainer>
+
+              <LabelInputContainer>
+                <Label className="text-[#7aa2f7]" htmlFor="password">
+                  Password
+                </Label>
+                <Input
+                  className="bg-[#24283b] border border-[#3b4261] text-[#c0caf5] placeholder-[#565f89]"
+                  id="password"
+                  placeholder="••••••••"
+                  type="password"
+                />
+              </LabelInputContainer>
+
+              <button
+                className="group/btn relative block h-9 w-full rounded-md bg-gradient-to-br from-[#7aa2f7] to-[#bb9af7] font-medium text-sm text-white shadow-md hover:from-[#2ac3de] hover:to-[#9ece6a] transition"
+                type="submit"
+              >
+                Sign up &rarr;
+                <BottomGradient />
+              </button>
+
+              <div className="my-4 h-[1px] w-full bg-gradient-to-r from-transparent via-[#3b4261] to-transparent" />
+
+              <div className="flex gap-2">
+                <SocialButton
+                  icon={<IconBrandGithub />}
+                  label="GitHub"
+                  onClick={() => signIn("github", { callbackUrl: "/chat" })}
+                />
+                <SocialButton
+                  icon={<IconBrandGoogle />}
+                  label="Google"
+                  onClick={() => signIn("google", { callbackUrl: "/chat" })}
+                />
+                <SocialButton icon={<IconBrandOnlyfans />} label="OnlyFans" />
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }
 
 // --- HELPER COMPONENTS ---
 
-// 3. MODIFY THE SocialButton COMPONENT TO ACCEPT onClick
 const SocialButton = ({
   icon,
   label,

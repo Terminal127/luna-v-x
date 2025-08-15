@@ -20,12 +20,16 @@ import {
 export function TimelineDemo() {
   const data = [
     {
-      title: "2024",
+      title: "2024 - Genesis",
       content: (
         <div>
-          <p className="mb-8 text-xs font-normal text-neutral-800 md:text-sm dark:text-neutral-200">
-            Built and launched Aceternity UI and Aceternity UI Pro from scratch
+          <p className="mb-8 text-2xl font-stretch-normal text-[#a9b1d6] md:text-sm dark:text-white">
+            It all started with a dream in my second year first semester. Luna
+            was born from rigid if-else chains - every command, every response
+            mapped out in conditional blocks. But she could do amazing things
+            even then:
           </p>
+
           <div className="grid grid-cols-2 gap-4">
             {[
               "startup-1.webp",
@@ -47,16 +51,13 @@ export function TimelineDemo() {
       ),
     },
     {
-      title: "Early 2023",
+      title: "Early 2025 - Nexus",
       content: (
         <div>
-          <p className="mb-8 text-xs font-normal text-neutral-800 md:text-sm dark:text-neutral-200">
-            I usually run out of copy, but when I see content this big, I try to
-            integrate lorem ipsum.
-          </p>
-          <p className="mb-8 text-xs font-normal text-neutral-800 md:text-sm dark:text-neutral-200">
-            Lorem ipsum is for people who are too lazy to write copy. But we are
-            not. Here are some more example of beautiful designs I built.
+          <p className="mb-8 text-2xs font-normal text-[#a9b1d6] md:text-sm dark:text-neutral-200">
+            Learned about agentic system and langchain through a hackathon.
+            Implemented a simple agent using langchain, tweaking, breaking,
+            fixing and building, all for understand the true power of AI.
           </p>
           <div className="grid grid-cols-2 gap-4">
             {[
@@ -79,23 +80,24 @@ export function TimelineDemo() {
       ),
     },
     {
-      title: "Changelog",
+      title: "2025 - Omega",
       content: (
         <div>
-          <p className="mb-4 text-xs font-normal text-neutral-800 md:text-sm dark:text-neutral-200">
-            Deployed 5 new components on Aceternity today
+          <p className="mb-4 text-2xl font-normal text-[#a9b1d6] md:text-sm dark:text-neutral-200">
+            True Agentic Intelligence Achieved!
           </p>
-          <div className="mb-8 space-y-2">
+          <div className="mb-8 space-y-2 ">
             {[
-              "✅ Card grid component",
-              "✅ Startup template Aceternity",
-              "✅ Random file upload lol",
-              "✅ Himesh Reshammiya Music CD",
-              "✅ Salman Bhai Fan Club registrations open",
+              "-> True agentic behavior - thinks and adapts",
+              "-> Emotional intelligence - knows how you feel",
+              "-> Collaborative decision making",
+              "-> Context-aware responses",
+              "-> Self-improving algorithms",
+              "-> Proactive suggestions and actions",
             ].map((item, idx) => (
               <div
                 key={idx}
-                className="flex items-center gap-2 text-xs text-neutral-700 md:text-sm dark:text-neutral-300"
+                className="flex items-center gap-2 text-xs text-[#a9b1d6] md:text-sm dark:text-neutral-300"
               >
                 {item}
               </div>
@@ -124,7 +126,7 @@ export function TimelineDemo() {
   ];
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full mb-96">
       <Timeline data={data} />
     </div>
   );

@@ -7,7 +7,7 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import { useSession } from "next-auth/react";
+import { useSession, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { BackgroundBeams } from "../../components/ui/background-beams";
 import { PlaceholdersAndVanishInput } from "../../components/ui/placeholders-and-vanish-input";
@@ -283,6 +283,9 @@ export default function ChatPage() {
       e.preventDefault();
       if (!currentMessage.trim() || isLoading) return;
 
+      // Trigger token refresh by calling getSession
+      await getSession();
+
       const messageText = currentMessage.trim();
       setCurrentMessage("");
       const userMessage: Message = {
@@ -303,13 +306,10 @@ export default function ChatPage() {
         }
       }, 0);
 
-      // Show loading state immediately
-      const assistantId = Date.now() + 1;
-      setCurrentGeneratingId(assistantId);
-
       // Capture tool_events from the response
       const { response: aiResponse, tool_events } =
         await generateAssistantResponse(messageText, sessionId);
+      const assistantId = Date.now() + 1;
 
       // Pass tool_events to the new message object
       const assistantMessage: Message = {
@@ -320,8 +320,10 @@ export default function ChatPage() {
         tool_events: tool_events,
       };
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      // Set loading to false before adding the new message
       setIsLoading(false);
+      setMessages((prev) => [...prev, assistantMessage]);
+      setCurrentGeneratingId(assistantId);
 
       // Scroll to bottom for new assistant message
       setTimeout(() => {
@@ -463,11 +465,8 @@ export default function ChatPage() {
                 <div
                   className="flex-1 rounded-2xl shadow-2xl flex flex-col min-h-0"
                   style={{
-                    // background: "rgba(36, 40, 59, 0.6)",
-                    // this is the code where the chat container is defined
                     background: "transparent",
                     border: "1px solid #414868",
-                    // backdropFilter: "blur(12px)",
                   }}
                 >
                   <div
@@ -482,6 +481,35 @@ export default function ChatPage() {
                         typingText={typingText}
                       />
                     ))}
+
+                    {/* ✅ MODIFIED: Show loader when isLoading is true */}
+                    {isLoading && (
+                      <div className="chat chat-start">
+                        <div className="chat-image avatar">
+                          <div className="w-10 rounded-full">
+                            <img
+                              src="https://i.pinimg.com/1200x/80/da/fd/80dafd10e7f0aead92234fcd232fcbd2.jpg"
+                              alt="Luna Assistant"
+                            />
+                          </div>
+                        </div>
+                        <div className="chat-header text-[#c0caf5]">
+                          Luna
+                          <time className="text-xs opacity-50 ml-2">
+                            Typing...
+                          </time>
+                        </div>
+                        <div
+                          className="chat-bubble"
+                          style={{
+                            backgroundColor: "#2f3549",
+                            color: "#c0caf5",
+                          }}
+                        >
+                          <span className="loading loading-dots loading-xs"></span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -496,7 +524,6 @@ export default function ChatPage() {
                     />
                   </div>
 
-                  {/* ✅ MODIFIED: The toggle switch is now conditionally rendered */}
                   {messages.length > 0 && (
                     <div className="flex items-center gap-2 mr-3 transition-opacity duration-500">
                       <span className="text-sm text-neutral-400 font-sans"></span>
@@ -518,19 +545,16 @@ export default function ChatPage() {
                     <Button
                       onClick={handleStopGeneration}
                       variant="destructive"
-                      size="icon" // Use the new "icon" size
+                      size="icon"
                       title="Stop generation"
-                      // Add absolute positioning classes
                       className="absolute right-20 top-1/2 -translate-y-1/2"
                     >
                       <span className="loading-spinner"></span>
-                      {/* REMOVE THE TEXT SPAN: <span className="hidden md:inline">Stop</span> */}
                     </Button>
                   )}
                 </div>
               </div>
 
-              {/* Scroll to Bottom Button */}
               {showScrollToBottom && (
                 <div className="absolute bottom-20 right-4 z-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="relative">
@@ -574,7 +598,7 @@ export default function ChatPage() {
           display: inline-block;
           width: 16px;
           height: 16px;
-          border: 2px solid rgba(255, 255, 255, 0.3);
+          border: 8px solid rgba(0, 0, 0, 0.3);
           border-radius: 50%;
           border-top-color: #fff;
           animation: spin 1s ease-in-out infinite;
