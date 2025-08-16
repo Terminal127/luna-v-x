@@ -2,6 +2,14 @@
 @import "tw-animate-css";
 @plugin "daisyui";
 
+@font-face {
+    font-family: "Sansita";
+    src: url("/fonts/Sansita-Regular.ttf") format("truetype");
+    font-weight: 400; /* Adjust if you have specific weights like 300, 700 etc. */
+    font-style: normal;
+    font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 /* Hide scrollbar for all elements */
@@ -128,6 +136,7 @@
     }
     body {
         @apply bg-background text-foreground;
+        font-family: "Sansita", sans-serif;
     }
 }
 

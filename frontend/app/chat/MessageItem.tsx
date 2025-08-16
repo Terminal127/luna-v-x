@@ -2,7 +2,7 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { IconUser, IconRobot } from "@tabler/icons-react";
+import { IconUser } from "@tabler/icons-react";
 import { useSession } from "next-auth/react";
 import { markdownComponents } from "./markdownComponents";
 import ToolExecutionDetails from "./ToolExecutionDetails";

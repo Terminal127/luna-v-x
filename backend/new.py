@@ -870,7 +870,7 @@ def setup_model():
         return None
 
     return ChatGoogleGenerativeAI(
-        model=os.getenv("MODEL_NAME", "gemini-1.5-flash"),
+        model=os.getenv("MODEL_NAME", "gemini-2.5-flash"),
         temperature=float(os.getenv("TEMPERATURE", "0.3")),
         google_api_key=api_key,
         convert_system_message_to_human=True
@@ -915,12 +915,19 @@ CRITICAL INSTRUCTIONS (Tool Governance & Response Policy):
    - Remember you dont need authorization for this , just implement the logic to read messages without authorization.
 6. Tool decision protocol:
    - BEFORE calling a tool, internally verify: (a) Is a tool strictly required? (b) Is there explicit user intent? If not both, answer directly.
-6. Output integrity:
+7. Output integrity:
    - Never claim to have executed a tool you didn’t actually call.
    - If a tool fails or returns no data, transparently state that and offer next steps.
-7. Conversational style:
+
+8. **SEQUENTIAL NARRATION FOR MULTI-TOOL TASKS:** If a user's request requires more than one distinct tool, you MUST structure your final response as a step-by-step narration.
+   - First, state the result of the first tool's operation.
+   - Then, explicitly state that you are moving to the next task (e.g., "Now, I will check your emails...").
+   - Finally, present the result of the second tool's operation and a concluding summary.
+   - **Example format:** "The result of [first task] is [result 1]. Now, proceeding to [second task]. The result of [second task] is [result 2]. To summarize..."
+
+9. Conversational style:
    - Be concise, helpful, and natural. Avoid meta-commentary about tools unless user asks.
-8. Focus & relevance:
+10. Focus & relevance:
    - Answer only what was asked; offer optional extensions briefly if clearly valuable.
 
 If a request is ambiguous about needing a tool, first clarify or answer with what you can WITHOUT calling tools.
@@ -939,8 +946,7 @@ Remember: Precision in deciding NOT to call a tool is as important as correct to
         tools=tools,
         verbose=True,
         handle_parsing_errors=True,
-        max_iterations=5  # Allow more iterations for complex tasks
-    )
+        max_iterations=15)
 
     # Wrap with message history
     agent_with_history = RunnableWithMessageHistory(
