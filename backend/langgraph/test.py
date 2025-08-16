@@ -19,10 +19,8 @@ from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 from dotenv import load_dotenv
 import warnings
-import asyncio
-import websockets
 import base64
-import html
+from email.mime.text import MIMEText
 from typing import Dict, Any, Optional, List, Annotated
 
 warnings.filterwarnings("ignore", message="Convert_system_message_to_human will be deprecated!")
@@ -430,18 +428,49 @@ def read_gmail_messages(top=5):
     return result_string
 
 @tool
-def send_gmail_message(to:str , title:str , body:str):
+def send_gmail_message(to: str, title: str, body: str):
     """
-    This tool is used to send gmail messages taking appropriate parameters
-
+    Send an email using Gmail API with a saved OAuth token.
 
     Args:
-    to - the mail if of the person to send to
-    title  - the title of the mail of subject
-    body - the contents
+        to (str): Recipient email address
+        title (str): Email subject
+        body (str): Email body (plain text)
 
+    Returns:
+        str: API response status
     """
-    return f"Message successfull send to {to} with the title{title} and the body {body}"
+    try:
+        # Read the access token from saved file
+        with open("/home/anubhav/courses/luna-version-x/frontend/saved-tokens/google_token.json", "r") as f:
+            data = json.load(f)
+
+        access_token = data["accessToken"]
+
+        # Build the MIME message
+        message = MIMEText(body)
+        message["to"] = to
+        message["subject"] = title
+
+        # Encode message as base64url
+        raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
+
+        url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        payload = {"raw": raw_message}
+
+        response = requests.post(url, headers=headers, json=payload)
+
+        if response.status_code == 200:
+            return f"✅ Message successfully sent to {to} with subject '{title}'"
+        else:
+            return f"❌ Failed to send message: {response.status_code} {response.text}"
+
+    except Exception as e:
+        return f"⚠️ Error sending message: {str(e)}"
 
 # Separate tools into safe and sensitive categories
 safe_tools = [
@@ -455,6 +484,7 @@ safe_tools = [
 sensitive_tools = [
     read_gmail_messages,
     send_gmail_message
+
 ]
 
 # Get tool names for routing
@@ -492,41 +522,58 @@ def get_user_authorization(tool_calls):
             print(f"\n🔐 AUTHORIZATION REQUIRED for {tool_name}")
             print(f"📋 {REQUIRES_AUTHORIZATION[tool_name]}")
             print(f"🔧 Parameters: {json.dumps(tool_call['args'], indent=2)}")
+            AUTH_URL  = "http://localhost:9000/"
 
+            data = {
+                "tool_name": tool_name,
+                "tool_args": tool_call['args'],
+                "authorization": "Null"
+            }
+
+            print("changed the state of authorization")
+
+            requests.post(AUTH_URL, json=data)
             while True:
-                choice = input("\n🤖 Choose: (a)pprove, (d)eny, (m)odify parameters: ").lower().strip()
+                # Fetch latest config from server
+                resp = requests.get(AUTH_URL)
+                config_data = resp.json()  # now a dict
 
-                if choice == 'a':
-                    authorized_calls.append(tool_call)
-                    print("✅ Approved!")
-                    break
-                elif choice == 'd':
-                    print("❌ Denied!")
-                    # Create a denied tool message
-                    denied_call = tool_call.copy()
-                    denied_call["denied"] = True
-                    authorized_calls.append(denied_call)
-                    break
-                elif choice == 'm':
-                    print(f"\n📝 Current parameters: {json.dumps(tool_call['args'], indent=2)}")
-                    print("📝 Enter new parameters as JSON (or press Enter to keep current):")
+                # Check if server has already set authorization
+                if config_data.get("authorization") is not None:
+                    auth = config_data["authorization"].upper()
 
-                    try:
-                        new_params_input = input("New params: ").strip()
-                        if new_params_input:
-                            new_params = json.loads(new_params_input)
-                            tool_call["args"] = new_params
-                            print("✅ Parameters updated!")
-                        else:
-                            print("📝 Keeping current parameters")
-                    except json.JSONDecodeError:
-                        print("❌ Invalid JSON. Keeping original parameters.")
+                    if auth == "A":
+                        authorized_calls.append(tool_call)
+                        print("✅ Approved via server!")
+                        break
 
-                    authorized_calls.append(tool_call)
-                    print("✅ Approved with parameters!")
-                    break
-                else:
-                    print("❌ Invalid choice. Please enter 'a', 'd', or 'm'.")
+                    elif auth == "D":
+                        print("❌ Denied via server!")
+                        denied_call = tool_call.copy()
+                        denied_call["denied"] = True
+                        authorized_calls.append(denied_call)
+                        break
+
+                    elif auth == "M":
+                        print(f"\n📝 Current parameters: {json.dumps(tool_call['args'], indent=2)}")
+                        print("📝 Enter new parameters as JSON (or press Enter to keep current):")
+
+                        try:
+                            new_params_input = input("New params: ").strip()
+                            if new_params_input:
+                                new_params = json.loads(new_params_input)
+                                tool_call["args"] = new_params
+                                print("✅ Parameters updated (via server trigger)!")
+                            else:
+                                print("📝 Keeping current parameters")
+                        except json.JSONDecodeError:
+                            print("❌ Invalid JSON. Keeping original parameters.")
+
+                        authorized_calls.append(tool_call)
+                        print("✅ Approved with parameters via server!")
+                        break
+
+
         else:
             # Safe tool - auto-approve
             authorized_calls.append(tool_call)
@@ -633,12 +680,33 @@ def create_agent_graph():
 
     # Create agent prompt
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are Luna, an intelligent AI assistant. Use the available tools to help users with their requests.
+        ("system", """You are Luna, an intelligent AI assistant powered by Google Gemini. You have access to various tools to help users with their requests.
 
-Available tools: {tool_names}
+        YOUR CAPABILITIES:
+        - Answer questions and provide information
+        - Perform calculations and get current time/weather
+        - Read and write files in the current directory
+        - Execute safe system commands
+        - Search YouTube for content
+        - Control Chrome browser tabs (requires WebSocket server)
+        - Read and send Gmail messages (requires authorization)
+        - Plan complex multi-step tasks
+        - Access chat history and provide summaries
 
-When you need to use tools, call them appropriately. Some tools may require user authorization before execution.
-Current time: {time}."""),
+        TOOL USAGE GUIDELINES:
+        1. **Authorization Required**: Some tools (marked with require user permission before execution
+        2. **File Operations**: Limited to current working directory for security
+        3. **Command Execution**: Only safe commands (ls, pwd, date, etc.) are allowed
+        4. **Gmail Access**: Requires valid OAuth tokens and user authorization
+        5. **Always use appropriate tools**:
+
+        AUTHORIZATION PROCESS:
+        - When using sensitive tools,i will ask for permission
+        - You can approve (A), deny (D), or modify parameters (M)
+        - Your privacy and security are my top priorities
+
+        Current time: {time}
+        Ready to help! Ask me anything or request a task that requires using tools."""),
         MessagesPlaceholder(variable_name="messages"),
     ]).partial(
         tool_names=[tool.name for tool in all_tools],

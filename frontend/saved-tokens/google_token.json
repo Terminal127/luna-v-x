@@ -2,10 +2,10 @@
   "email": "terminalishere127@gmail.com",
   "name": "Terminal Terminal",
   "image": "https://lh3.googleusercontent.com/a/ACg8ocIuiaQG8AG685TOTK94_qiD-5r0xj1TNm7bG6inKXUyz0Ovhz8=s96-c",
-  "accessToken": "ya29.A0AS3H6Nxv7oVWHch0gsyqlTKrZtPrLNkBNzPj2xEjo4kHhgQH9x8yjwmePtJTqp6uc-XYBBF1M8lS6pUOZ1hHbCEqxmcFSmA3kef0w345JlQRkI5epbytBX5ChvuDJykxUhCV5DEhSQjfV5jicEHXKlun_l2o9QahxtwCixozHN-GSSp9Be9q1PF_01BThWplk0WHHIFaaCgYKAX0SARcSFQHGX2Mi05kZF07Nt0f-4YRoAfRr6Q0207",
+  "accessToken": "ya29.A0AS3H6NwyBNAWu8UIlRuIXU-aFwxWvGXBuYWB7OoyvBU9rF9enc_lKYMaZMeeANHjKUnVdqqxeRBi2A6mTN1myyZ1Qq6yM6LXD_oZzpYF3sudNJJRjJ0hyGdB2a6iZ8nBPfcRg7fklD7ekHcgb3T_STv6isbPPLFvIzjTLQPSki8_oqy1RRLSZkpe67CwQ0NP21Ft4V_eaCgYKAcwSARcSFQHGX2Mi7jVMbNGvb19YzrSeVZ2XYw0207",
   "refreshToken": "1//0gJka_Zw3Nfz3CgYIARAAGBASNwF-L9IrpLev1jTSmoXE3kVn5ZizZmQNPL2pPEyN_jk_mXFxU74wdYV5_s-OEUT1LYiVaJfuNgY",
-  "expiresAt": 1755339493,
+  "expiresAt": 1755367169,
   "tokenType": "Bearer",
   "scope": "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
-  "savedAt": "2025-08-16T09:18:14.386Z"
+  "savedAt": "2025-08-16T17:05:01.221Z"
 }
