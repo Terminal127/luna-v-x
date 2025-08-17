@@ -180,9 +180,16 @@ def invoke_agent(session_id: str, user_input: str) -> (str, List[Dict[str, Any]]
     config = {"configurable": {"thread_id": session_id}}
 
     try:
-        # Track tools that are called
-        current_tools = {}
+        # Get initial message count to know what's new
+        initial_state = None
+        try:
+            # Try to get current state to know existing message count
+            initial_state = _app_graph.get_state(config)
+            initial_message_count = len(initial_state.values.get("messages", [])) if initial_state.values else 0
+        except:
+            initial_message_count = 0
 
+        current_tools = {}
         final_state = None
 
         # Stream through the graph execution
@@ -193,9 +200,18 @@ def invoke_agent(session_id: str, user_input: str) -> (str, List[Dict[str, Any]]
         ):
             final_state = event
 
-            # Extract tool calls from messages
+            # Only process messages that are NEW (added during this request)
             if "messages" in event:
-                for message in event["messages"]:
+                all_messages = event["messages"]
+
+                # Only examine messages after the initial count
+                new_messages = all_messages[initial_message_count:]
+
+                for message in new_messages:
+                    # Skip the user input message we just added
+                    if hasattr(message, 'type') and message.type == "human":
+                        continue
+
                     # Check if this is an AI message with tool calls
                     if hasattr(message, 'tool_calls') and message.tool_calls:
                         for tool_call in message.tool_calls:
@@ -359,7 +375,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "api_server:app",
-        host="0.0.0.0",
+        host=os.getenv("HOST", "127.0.0.1"),  # Changed default to localhost
         port=int(os.getenv("PORT", "8000")),
         reload=bool(os.getenv("UVICORN_RELOAD", "false").lower() == "true"),
     )

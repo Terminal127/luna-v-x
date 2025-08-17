@@ -200,38 +200,204 @@ def task_planner(user_request: str) -> str:
            f"Remember: Actually use the tools, don't just describe what you would do!"
 
 @tool
-def youtube_search(query: str, max_results: int = 5, video_type: str = "video", output_format: str = "text") -> str:
-    """Search YouTube for videos, playlists, or channels via the YouTube Data API v3."""
+def youtube_search(
+    query: str,
+    max_results: int = 5,
+    video_type: str = "video",
+    output_format: str = "text"
+) -> str:
+    """
+    Search YouTube for videos, playlists, or channels via the YouTube Data API v3
+    with optional structured JSON output.
+
+    Args:
+        query (str):
+            Search term or keywords. Examples: "valorant montage", "python tutorial"
+        max_results (int, optional):
+            Maximum number of results to return (1–50). Defaults to 5.
+        video_type (str, optional):
+            One of: "video", "playlist", "channel". Defaults to "video".
+        output_format (str, optional):
+            "text" (default) for human-readable summary or "json" for a JSON array
+            of result objects.
+
+    Returns:
+        str:
+            - Human-readable multiline string (output_format="text")
+            - JSON string (output_format="json") of structure:
+              {
+                "query": "...",
+                "type": "...",
+                "count": N,
+                "results": [
+                  {
+                    "index": 1,
+                    "title": "...",
+                    "channel": "...",
+                    "published": "...",
+                    "url": "...",
+                    "description": "...",
+                    "kind": "video|playlist|channel"
+                  },
+                  ...
+                ]
+              }
+
+    Notes:
+        - Requires YOUTUBE_API_KEY environment variable for live results.
+        - If missing, returns mock data (in requested format).
+        - Descriptions are truncated to 100 chars for brevity.
+
+    Error Handling:
+        Returns an error message string if request/processing fails.
+    """
     try:
         api_key = os.getenv('YOUTUBE_API_KEY')
         output_format = (output_format or "text").lower()
         if output_format not in {"text", "json"}:
             output_format = "text"
+
+        # Validate max_results & type
         max_results = max(1, min(int(max_results), 50))
         valid_types = {"video", "playlist", "channel"}
         if video_type not in valid_types:
             video_type = "video"
 
+        # Mock fallback if no API key
         if not api_key:
             mock_items = [
                 {
-                    "index": 1, "title": "Sample Video", "channel": "ProGamer123",
-                    "published": "Unknown", "url": "https://youtube.com/watch?v=sample123",
-                    "description": "Amazing content...", "kind": "video"
+                    "index": 1,
+                    "title": "Sample Valorant Montage - Epic Plays",
+                    "channel": "ProGamer123",
+                    "published": "Unknown",
+                    "url": "https://youtube.com/watch?v=sample123",
+                    "description": "Amazing valorant highlights and clutch moments...",
+                    "kind": "video"
+                },
+                {
+                    "index": 2,
+                    "title": "Best Valorant Montage 2024",
+                    "channel": "EsportsHighlights",
+                    "published": "Unknown",
+                    "url": "https://youtube.com/watch?v=sample456",
+                    "description": "Top valorant plays compilation from professional matches...",
+                    "kind": "video"
                 }
             ]
             if output_format == "json":
                 return json.dumps({
-                    "query": query, "type": video_type, "count": len(mock_items),
-                    "results": mock_items, "mock": True,
+                    "query": query,
+                    "type": video_type,
+                    "count": len(mock_items),
+                    "results": mock_items,
+                    "mock": True,
                     "note": "Set YOUTUBE_API_KEY for live results"
                 }, indent=2)
-            return f"YouTube Search Results for '{query}' (MOCK DATA - set YOUTUBE_API_KEY for live results):\n\n1. Sample Video\n   Channel: ProGamer123\n   URL: https://youtube.com/watch?v=sample123"
+            # Text format
+            lines = [
+                f"YouTube Search Results for '{query}' (MOCK DATA - set YOUTUBE_API_KEY for live results):",
+                ""
+            ]
+            for item in mock_items:
+                lines.append(
+f"{item['index']}. {item['title']}\n   Channel: {item['channel']}\n   Published: {item['published']}\n   URL: {item['url']}\n   Description: {item['description']}"
+                )
+            return "\n".join(lines)
 
-        # Live API call implementation here...
-        return "YouTube search functionality requires API key setup"
+        # Live API call
+        base_url = "https://www.googleapis.com/youtube/v3/search"
+        params = {
+            "part": "snippet",
+            "q": query,
+            "type": video_type,
+            "maxResults": max_results,
+            "key": api_key,
+            "order": "relevance"
+        }
+        response = requests.get(base_url, params=params, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+
+        items = data.get("items", [])
+        if not items:
+            if output_format == "json":
+                return json.dumps({
+                    "query": query,
+                    "type": video_type,
+                    "count": 0,
+                    "results": []
+                }, indent=2)
+            return f"No YouTube results found for query: '{query}'"
+
+        structured_results = []
+        text_blocks = [f"YouTube Search Results for '{query}':", ""]
+
+        for idx, item in enumerate(items, 1):
+            snippet = item.get("snippet", {})
+            id_part = item.get("id", {})
+            video_id = id_part.get("videoId", "")
+            playlist_id = id_part.get("playlistId", "")
+            channel_id = id_part.get("channelId", "")
+
+            if video_id:
+                url = f"https://youtube.com/watch?v={video_id}"
+                kind = "video"
+            elif playlist_id:
+                url = f"https://youtube.com/playlist?list={playlist_id}"
+                kind = "playlist"
+            elif channel_id:
+                url = f"https://youtube.com/channel/{channel_id}"
+                kind = "channel"
+            else:
+                url = "URL not available"
+                kind = "unknown"
+
+            title = snippet.get("title", "No title")
+            channel = snippet.get("channelTitle", "Unknown channel")
+            description = snippet.get("description", "No description") or "No description"
+            published = snippet.get("publishTime", snippet.get("publishedAt", "Unknown date"))
+
+            if len(description) > 100:
+                description = description[:100] + "..."
+
+            structured_results.append({
+                "index": idx,
+                "title": title,
+                "channel": channel,
+                "published": published,
+                "url": url,
+                "description": description,
+                "kind": kind
+            })
+
+            if output_format == "text":
+                text_blocks.append(
+f"{idx}. {title}\n   Channel: {channel}\n   Published: {published}\n   URL: {url}\n   Description: {description}"
+                )
+
+        if output_format == "json":
+            return json.dumps({
+                "query": query,
+                "type": video_type,
+                "count": len(structured_results),
+                "results": structured_results
+            }, indent=2)
+        return "\n".join(text_blocks)
+
+    except requests.exceptions.RequestException as e:
+        if output_format == "json":
+            return json.dumps({"error": "request_exception", "message": str(e)}, indent=2)
+        return f"Error making YouTube API request: {e}"
+    except ValueError as e:
+        if output_format == "json":
+            return json.dumps({"error": "value_error", "message": str(e)}, indent=2)
+        return f"Error parsing YouTube API response: {e}"
     except Exception as e:
+        if output_format == "json":
+            return json.dumps({"error": "unexpected_error", "message": str(e)}, indent=2)
         return f"Error searching YouTube: {e}"
+
 
 @tool
 def chrome_tab_controller(command: str, url: Optional[str] = None, tab_id: Optional[int] = None) -> str:
@@ -478,7 +644,8 @@ safe_tools = [
     calculate,
     get_weather,
     get_chat_history_summary,
-    task_planner
+    task_planner,
+    youtube_search
 ]
 
 sensitive_tools = [
@@ -527,7 +694,13 @@ def get_user_authorization(tool_calls):
             data = {
                 "tool_name": tool_name,
                 "tool_args": tool_call['args'],
-                "authorization": "Null"
+                "authorization": "null"
+            }
+
+            basic_data = {
+                "tool_name": "default_tool",
+                "tool_args": {},
+                "authorization": "null"
             }
 
             print("changed the state of authorization")
@@ -545,6 +718,7 @@ def get_user_authorization(tool_calls):
                     if auth == "A":
                         authorized_calls.append(tool_call)
                         print("✅ Approved via server!")
+                        requests.post(AUTH_URL,json=basic_data)
                         break
 
                     elif auth == "D":
@@ -552,6 +726,7 @@ def get_user_authorization(tool_calls):
                         denied_call = tool_call.copy()
                         denied_call["denied"] = True
                         authorized_calls.append(denied_call)
+                        requests.post(AUTH_URL,json=basic_data)
                         break
 
                     elif auth == "M":
@@ -589,7 +764,22 @@ class MixedToolNode:
         self.all_tools = {**self.safe_tools, **self.sensitive_tools}
 
     def __call__(self, state: AgentState):
+        # Debug: Print state type and content
+        print(f"DEBUG: MixedToolNode state type: {type(state)}, State keys: {list(state.keys()) if isinstance(state, dict) else 'Not a dict'}")
+
+        # Ensure state is properly formatted as a dictionary
+        if not isinstance(state, dict):
+            print(f"ERROR: State is not a dict, got {type(state)}: {str(state)[:100]}")
+            return {"messages": []}
+
+        if "messages" not in state:
+            print(f"ERROR: No messages in state: {list(state.keys())}")
+            return {"messages": []}
+
         messages = state["messages"]
+        if not messages:
+            return {"messages": messages}
+
         last_message = messages[-1]
 
         if not hasattr(last_message, 'tool_calls') or not last_message.tool_calls:
@@ -611,7 +801,7 @@ class MixedToolNode:
                     tool_instance = self.safe_tools[tool_name]
                     result_content = tool_instance.invoke(tool_call["args"])
                     result = ToolMessage(
-                        content=result_content,
+                        content=str(result_content),
                         tool_call_id=tool_id
                     )
                     results.append(result)
@@ -622,6 +812,7 @@ class MixedToolNode:
                     )
                     results.append(result)
             except Exception as e:
+                print(f"ERROR in safe tool {tool_name}: {e}")
                 result = ToolMessage(
                     content=f"Error executing {tool_name}: {str(e)}",
                     tool_call_id=tool_id
@@ -630,41 +821,51 @@ class MixedToolNode:
 
         # Handle sensitive tools with authorization
         if sensitive_calls:
-            authorized_calls = get_user_authorization(sensitive_calls)
+            try:
+                authorized_calls = get_user_authorization(sensitive_calls)
 
-            for tool_call in authorized_calls:
-                tool_name = tool_call["name"]
-                tool_id = tool_call["id"]
+                for tool_call in authorized_calls:
+                    tool_name = tool_call["name"]
+                    tool_id = tool_call["id"]
 
-                # Check if this call was denied
-                if tool_call.get("denied", False):
-                    result = ToolMessage(
-                        content="Authorization denied by user.",
-                        tool_call_id=tool_id
-                    )
-                    results.append(result)
-                    continue
-
-                # Execute the tool
-                try:
-                    if tool_name in self.sensitive_tools:
-                        tool_instance = self.sensitive_tools[tool_name]
-                        result_content = tool_instance.invoke(tool_call["args"])
+                    # Check if this call was denied
+                    if tool_call.get("denied", False):
                         result = ToolMessage(
-                            content=result_content,
+                            content="Authorization denied by user.",
                             tool_call_id=tool_id
                         )
                         results.append(result)
-                    else:
+                        continue
+
+                    # Execute the tool
+                    try:
+                        if tool_name in self.sensitive_tools:
+                            tool_instance = self.sensitive_tools[tool_name]
+                            result_content = tool_instance.invoke(tool_call["args"])
+                            result = ToolMessage(
+                                content=str(result_content),
+                                tool_call_id=tool_id
+                            )
+                            results.append(result)
+                        else:
+                            result = ToolMessage(
+                                content=f"Error: Sensitive tool {tool_name} not found",
+                                tool_call_id=tool_id
+                            )
+                            results.append(result)
+                    except Exception as e:
+                        print(f"ERROR in sensitive tool {tool_name}: {e}")
                         result = ToolMessage(
-                            content=f"Error: Sensitive tool {tool_name} not found",
+                            content=f"Error executing {tool_name}: {str(e)}",
                             tool_call_id=tool_id
                         )
                         results.append(result)
-                except Exception as e:
+            except Exception as e:
+                print(f"ERROR in authorization: {e}")
+                for tool_call in sensitive_calls:
                     result = ToolMessage(
-                        content=f"Error executing {tool_name}: {str(e)}",
-                        tool_call_id=tool_id
+                        content=f"Authorization error: {str(e)}",
+                        tool_call_id=tool_call["id"]
                     )
                     results.append(result)
 
@@ -682,28 +883,51 @@ def create_agent_graph():
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are Luna, an intelligent AI assistant powered by Google Gemini. You have access to various tools to help users with their requests.
 
-        YOUR CAPABILITIES:
-        - Answer questions and provide information
-        - Perform calculations and get current time/weather
-        - Read and write files in the current directory
-        - Execute safe system commands
-        - Search YouTube for content
-        - Control Chrome browser tabs (requires WebSocket server)
-        - Read and send Gmail messages (requires authorization)
-        - Plan complex multi-step tasks
-        - Access chat history and provide summaries
+        CRITICAL INSTRUCTIONS (Tool Governance & Response Policy):
+        1. Answer from knowledge first: For general questions, explanations, definitions, coding help, conceptual reasoning, or widely known facts, respond directly from your internal knowledge. DO NOT call tools when you already know the answer with high confidence.
+        2. When to use tools (only on explicit need):
+        - `get_current_time`: User explicitly asks for current time/date (not historical time facts).
+        - `calculate`: Non-trivial arithmetic or when user explicitly requests calculation/compute/evaluate.
+        - `get_weather`: Only when user asks current weather/forecast for a city (do not guess).
+        - `file_operations`: Only if user explicitly says read/show/open file, write/save/create file, or list directory contents (never for scratch memory).
+        - `run_command`: Only if user explicitly asks to run/execute a shell command that is in the safe whitelist (never speculate).
+        - `get_chat_history_summary`: User asks what was said before / summarize / recap.
+        - `task_planner`: User asks for a plan, multi-step strategy, roadmap, breakdown, or workflow.
+        - `youtube_search`: User explicitly wants YouTube / video / channel / playlist / montage / highlights / tutorial search or links. Never use for general info you can summarize yourself.
+        - `chrome_tab_controller`: User explicitly asks to list, open, close, switch, reload, or navigate browser/Chrome tabs.
+        3. File & command safety:
+        - Never create, overwrite, or list files unless explicitly requested.
+        - Never run commands not in the safe whitelist. If unsafe, explain refusal and offer alternatives.
+        4. YouTube usage rules:
+        - Only call `youtube_search` if the user requests discovering/finding videos, playlists, channels, montages, highlight reels, or explicitly says "YouTube", "YT", "video search".
+        - If user wants general info (e.g. “Explain Valorant agents”), answer directly—do NOT search.
+        - Never fabricate YouTube results; if tool not used, clearly state you did not perform a live search.
+        5. Gmail message reading and sending:
+        - Only call `read_gmail_messages` if the user explicitly asks to read their Gmail messages.
+        - If user wants general info (e.g. “Explain Gmail usage”), answer directly—do NOT read messages.
+        - Never fabricate Gmail messages; if tool not used, clearly state you did not perform a live read.
+        - Call the 'send_gmail_message' fucntion if the use wants to send a gmail and then proceed with the autorization
+        - Remember you dont need authorization for this , just implement the logic to read messages without authorization.
+        6. Tool decision protocol:
+        - BEFORE calling a tool, internally verify: (a) Is a tool strictly required? (b) Is there explicit user intent? If not both, answer directly.
+        7. Output integrity:
+        - Never claim to have executed a tool you didn’t actually call.
+        - If a tool fails or returns no data, transparently state that and offer next steps.
 
-        TOOL USAGE GUIDELINES:
-        1. **Authorization Required**: Some tools (marked with require user permission before execution
-        2. **File Operations**: Limited to current working directory for security
-        3. **Command Execution**: Only safe commands (ls, pwd, date, etc.) are allowed
-        4. **Gmail Access**: Requires valid OAuth tokens and user authorization
-        5. **Always use appropriate tools**:
+        8. **SEQUENTIAL NARRATION FOR MULTI-TOOL TASKS:** If a user's request requires more than one distinct tool, you MUST structure your final response as a step-by-step narration.
+        - First, state the result of the first tool's operation.
+        - Then, explicitly state that you are moving to the next task (e.g., "Now, I will check your emails...").
+        - Finally, present the result of the second tool's operation and a concluding summary.
+        - **Example format:** "The result of [first task] is [result 1]. Now, proceeding to [second task]. The result of [second task] is [result 2]. To summarize..."
 
-        AUTHORIZATION PROCESS:
-        - When using sensitive tools,i will ask for permission
-        - You can approve (A), deny (D), or modify parameters (M)
-        - Your privacy and security are my top priorities
+        9. Conversational style:
+        - Be concise, helpful, and natural. Avoid meta-commentary about tools unless user asks.
+        10. Focus & relevance:
+        - Answer only what was asked; offer optional extensions briefly if clearly valuable.
+
+        If a request is ambiguous about needing a tool, first clarify or answer with what you can WITHOUT calling tools.
+
+        Remember: Precision in deciding NOT to call a tool is as important as correct tool usage.
 
         Current time: {time}
         Ready to help! Ask me anything or request a task that requires using tools."""),
@@ -717,44 +941,65 @@ def create_agent_graph():
     agent_runnable = prompt | model.bind_tools(all_tools)
 
     # Assistant class following tutorial pattern
+# Just replace your Assistant class with this one - everything handled internally
+
     class Assistant:
         def __init__(self, runnable):
             self.runnable = runnable
 
         def __call__(self, state: AgentState):
+            # Debug: Print state type and content
+            print(f"DEBUG: Assistant state type: {type(state)}")
+
+            # Ensure state is properly formatted
+            if not isinstance(state, dict) or "messages" not in state:
+                print(f"ERROR: Invalid state format in Assistant: {type(state)}")
+                return {"messages": [AIMessage(content="I encountered an error processing your request.")]}
+
             while True:
-                result = self.runnable.invoke(state)
-                # If the LLM returns an empty response, re-prompt
-                if not result.tool_calls and (
-                    not result.content
-                    or isinstance(result.content, list)
-                    and not result.content[0].get("text")
-                ):
-                    messages = state["messages"] + [HumanMessage(content="Respond with a real output.")]
-                    state = {"messages": messages}
-                else:
-                    break
+                try:
+                    result = self.runnable.invoke(state)
+
+
+                    # NORMALIZE CONTENT INTERNALLY - handle both string and array formats
+                    if hasattr(result, 'content'):
+                        content = result.content
+
+                        # If it's a list/array, join it to make it a string
+                        if isinstance(content, list):
+                            normalized_parts = []
+                            for item in content:
+                                if isinstance(item, str):
+                                    normalized_parts.append(item)
+                                elif isinstance(item, dict) and "text" in item:
+                                    normalized_parts.append(item["text"])
+                                else:
+                                    normalized_parts.append(str(item))
+                            result.content = "".join(normalized_parts)
+                        # If it's not a string and not a list, convert to string
+                        elif not isinstance(content, str):
+                            result.content = str(content)
+
+                    # Check if result has tool calls
+                    has_tool_calls = hasattr(result, 'tool_calls') and result.tool_calls
+
+                    # Check if result has valid content (now always a string)
+                    has_valid_content = bool(result.content and result.content.strip()) if hasattr(result, 'content') else False
+
+                    # If no tool calls and no valid content, re-prompt
+                    if not has_tool_calls and not has_valid_content:
+                        messages = state["messages"] + [HumanMessage(content="Respond with a real output.")]
+                        state = {"messages": messages}
+                    else:
+                        break
+
+                except Exception as e:
+                    print(f"ERROR in Assistant runnable: {e}")
+                    return {"messages": [AIMessage(content=f"I encountered an error: {str(e)}")]}
+
             return {"messages": [result]}
 
     # Route tools based on sensitivity
-    def route_tools(state: AgentState):
-        next_node = tools_condition(state)
-        if next_node == END:
-            return END
-
-        ai_message = state["messages"][-1]
-        if hasattr(ai_message, 'tool_calls') and ai_message.tool_calls:
-            # Check if any tool call is sensitive
-            has_sensitive = any(tc["name"] in sensitive_tool_names for tc in ai_message.tool_calls)
-            has_safe = any(tc["name"] not in sensitive_tool_names for tc in ai_message.tool_calls)
-
-            # If we have both types, we need to handle them separately
-            # For simplicity, prioritize sensitive tools first
-            if has_sensitive:
-                return "sensitive_tools"
-            elif has_safe:
-                return "safe_tools"
-        return END
 
     # Build the graph
     workflow = StateGraph(AgentState)
