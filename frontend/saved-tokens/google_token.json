@@ -2,10 +2,10 @@
   "email": "distortion8420@gmail.com",
   "name": "Anubhav Mazumder",
   "image": "https://lh3.googleusercontent.com/a/ACg8ocJQrEX53o5foEhO22i8kuLv1RJdY_72UI_a8vFy1vbtdXTrZsM=s96-c",
-  "accessToken": "ya29.a0AS3H6NwuHhUc10egburn9-VTWlLDq9K67dhwOn6stD2-a6SXsSefVIVLxkYVR9rPjkdjrrSm_LK6m0U68scQw3UdeC5lcHQmsyVyDYpGm_5ALfvxeNVwxHMkgwOP0PTQOFBpK5Y9fktQYU-JdRkZm536nVb21oqPTg7CjAdsHAaCgYKAY8SARMSFQHGX2MiP0NSsBpHBQVAitbzhzIOkA0177",
-  "refreshToken": "1//0g1fW-2lV7ok8CgYIARAAGBASNwF-L9IrrXtgqRGpl91eCxFkiXGaeyTN14o9cwYL6SwV9ZHC65IWmhTekuQmB2aaG38eDLz0EoU",
-  "expiresAt": 1755420649,
+  "accessToken": "ya29.a0AS3H6NymnscOguxkjnSxssgSBUgeBBzp5SH8oeRgRbGKp5GFJhouw97r35JpFCExzKZobuzRr-C0y31b83ATf9PO92DZi4YURWv6NjfFN4Jds6p0KiwPnVJ1c5Nd1t-lbO64Q7Z0An5UdmyMk4H1RU9AVuBoOCuExf8vS2cOygaCgYKAdgSARMSFQHGX2MiqtaTYvoVHOcB3sCWwWBQ_w0177",
+  "refreshToken": "1//0gtDLOXAo2FuQCgYIARAAGBASNwF-L9IrXm9jPRZVe_GkyPWkpd7C7SW-eHU0Cieh7RNoKZQpRUsvgQLddzDnJVNRUDxiMxhVF9A",
+  "expiresAt": 1755540321,
   "tokenType": "Bearer",
   "scope": "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
-  "savedAt": "2025-08-17T07:54:41.796Z"
+  "savedAt": "2025-08-18T17:05:36.178Z"
 }
