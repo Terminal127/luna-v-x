@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore", message="Convert_system_message_to_human will 
 chatmap = {}
 session_id = None
 HISTORY_FILE = "chat_history.json"
-COMMAND_HISTORY_FILE = os.path.expanduser("~/.langchain_chat_history")
+COMMAND_HISTORY_FILE = os.path.expanduser("/home/anubhav/courses/luna-version-x/backend/langgraph/langchain_chat_history.json")
 
 # Authorization settings - tools that require user permission
 REQUIRES_AUTHORIZATION = {
@@ -783,6 +783,7 @@ class MixedToolNode:
         last_message = messages[-1]
 
         if not hasattr(last_message, 'tool_calls') or not last_message.tool_calls:
+
             return {"messages": messages}
 
         # Separate safe and sensitive tool calls
