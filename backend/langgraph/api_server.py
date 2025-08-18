@@ -3,11 +3,13 @@ FastAPI server exposing the Luna Version X agent (LangGraph + Gemini) over HTTP.
 
 Features:
 - POST /api/chat           : Single chat turn (creates session if absent)
-- POST /api/session        : Create a new session
+- POST /api/session        : Create a new session for a user
 - GET  /api/session/{id}   : Retrieve session message history (sanitized)
+- GET  /api/user/{email}/sessions : Get all sessions for a user
 - GET  /health             : Basic liveness / readiness info
 
 Includes:
+- User email-based session management via MongoDB
 - Tool invocation capture via streaming events
 - Structured JSON responses with latency, session management
 - Graceful startup/shutdown (persists chat history using existing test.py mechanisms)
@@ -19,7 +21,7 @@ Assumptions:
 - GOOGLE_API_KEY is set in environment (.env loaded automatically if present)
 
 To run:
-    uvicorn api_server:app --host 0.0.0.0 --port 8000
+    uvicorn api_server:app --host 0.0.0.0 --port 8000 --reload
 """
 
 from __future__ import annotations
@@ -28,7 +30,11 @@ import os
 import json
 import time
 import threading
+import uuid
 from typing import Any, Dict, List, Optional
+from datetime import datetime
+from urllib.parse import unquote
+
 
 from fastapi import FastAPI, HTTPException
 from fastapi import APIRouter
@@ -95,12 +101,14 @@ class ToolEvent:
 # Pydantic Schemas
 # -----------------------------------------------------------------------------
 class ChatRequest(BaseModel):
-    session_id: Optional[str] = Field(None, description="Existing session ID or omit for implicit continuity")
+    email: str = Field(..., description="User email for session management")
+    session_id: Optional[str] = Field(None, description="Existing session ID or omit to use latest/create new")
     message: str = Field(..., min_length=1, max_length=8000, description="User input text")
 
 
 class ChatResponse(BaseModel):
     session_id: str
+    email: str
     message: str
     response: str
     latency_ms: float
@@ -108,8 +116,13 @@ class ChatResponse(BaseModel):
     error: Optional[str] = None
 
 
+class SessionCreateRequest(BaseModel):
+    email: str = Field(..., description="User email for the new session")
+
+
 class SessionCreateResponse(BaseModel):
     session_id: str
+    email: str
 
 
 class HistoryMessage(BaseModel):
@@ -120,7 +133,20 @@ class HistoryMessage(BaseModel):
 
 class SessionHistoryResponse(BaseModel):
     session_id: str
+    email: str
     messages: List[HistoryMessage]
+    count: int
+
+
+class UserSessionInfo(BaseModel):
+    session_id: str
+    last_updated: str
+    message_count: int
+
+
+class UserSessionsResponse(BaseModel):
+    email: str
+    sessions: List[UserSessionInfo]
     count: int
 
 
@@ -130,7 +156,7 @@ class SessionHistoryResponse(BaseModel):
 app = FastAPI(
     title=f"{APP_NAME} API",
     version="1.0.0",
-    description="HTTP interface for the Luna Version X Agent (LangGraph implementation)",
+    description="HTTP interface for the Luna Version X Agent with MongoDB session management",
 )
 
 # Allow all origins (tighten in production)
@@ -163,21 +189,47 @@ def ensure_agent_initialized():
     with _init_lock:
         if _app_graph is not None:
             return
-        backend.load_chat_history()  # reconstruct existing session
+        # Initialize MongoDB connection
+        if not backend.setup_mongodb_client():
+            raise RuntimeError("Failed to connect to MongoDB")
         _app_graph = backend.create_agent_graph()
         if not _app_graph:
             raise RuntimeError("Failed to initialize LangGraph agent")
 
 
+def setup_user_session(email: str, session_id: Optional[str] = None) -> str:
+    """Setup user session similar to test.py's load_chat_history logic"""
+    original_email = backend.user_email
+    original_session = backend.session_id
+
+    # Temporarily set the user email to load their history
+    backend.user_email = email.strip().lower()
+
+    if session_id:
+        # Use the provided session_id
+        backend.session_id = session_id
+        # Ensure this session exists in chatmap
+        if session_id not in backend.chatmap:
+            backend.chatmap[session_id] = backend.InMemoryChatMessageHistory()
+    else:
+        # Load the user's latest session or create new one
+        backend.load_chat_history()
+
+    return backend.session_id
+
+
 # -----------------------------------------------------------------------------
 # Core Chat Logic (adapted for LangGraph)
 # -----------------------------------------------------------------------------
-def invoke_agent(session_id: str, user_input: str) -> (str, List[Dict[str, Any]]):
-    """Invoke the LangGraph agent with tool capture."""
+def invoke_agent(email: str, session_id: str, user_input: str) -> (str, List[Dict[str, Any]]):
+    """Invoke the LangGraph agent with tool capture and user session management."""
     ensure_agent_initialized()
 
     tool_events = []
-    config = {"configurable": {"thread_id": session_id}}
+
+    # Setup the user session
+    actual_session_id = setup_user_session(email, session_id)
+    config = {"configurable": {"thread_id": actual_session_id}}
 
     try:
         # Get initial message count to know what's new
@@ -245,13 +297,20 @@ def invoke_agent(session_id: str, user_input: str) -> (str, List[Dict[str, Any]]
             elif hasattr(last_message, 'tool_calls'):
                 response_text = "Tool calls executed successfully"
 
+        # Update the chatmap with the conversation
+        if actual_session_id not in backend.chatmap:
+            backend.chatmap[actual_session_id] = backend.InMemoryChatMessageHistory()
+
+        backend.chatmap[actual_session_id].add_message(backend.HumanMessage(content=user_input))
+        backend.chatmap[actual_session_id].add_message(backend.AIMessage(content=response_text))
+
         # Finalize any remaining tool events
         for tool_event in tool_events:
             if tool_event.end is None:
                 tool_event.finalize("Completed")
 
         tool_events_dict = [evt.to_dict() for evt in tool_events]
-        return response_text, tool_events_dict
+        return actual_session_id, response_text, tool_events_dict
 
     except Exception as e:
         # Finalize any tool events with error
@@ -260,15 +319,7 @@ def invoke_agent(session_id: str, user_input: str) -> (str, List[Dict[str, Any]]
                 tool_event.fail(e)
 
         tool_events_dict = [evt.to_dict() for evt in tool_events]
-        return f"Error: {e}", tool_events_dict
-
-
-# -----------------------------------------------------------------------------
-# Session Utilities
-# -----------------------------------------------------------------------------
-def new_session_id() -> str:
-    import uuid
-    return str(uuid.uuid4())
+        return actual_session_id, f"Error: {e}", tool_events_dict
 
 
 # -----------------------------------------------------------------------------
@@ -279,18 +330,13 @@ def chat(req: ChatRequest):
     start = time.time()
     ensure_agent_initialized()
 
-    # If no explicit session provided, rely on backend global session
-    session_id = req.session_id or backend.session_id
-    if not session_id:
-        session_id = new_session_id()
-        backend.session_id = session_id
-
     try:
-        output, tool_events = invoke_agent(session_id, req.message)
+        session_id, output, tool_events = invoke_agent(req.email, req.session_id, req.message)
         backend.save_chat_history()
         latency = (time.time() - start) * 1000
         return ChatResponse(
             session_id=session_id,
+            email=req.email,
             message=req.message,
             response=output,
             latency_ms=round(latency, 2),
@@ -299,7 +345,8 @@ def chat(req: ChatRequest):
     except Exception as e:
         latency = (time.time() - start) * 1000
         return ChatResponse(
-            session_id=session_id,
+            session_id=req.session_id or "unknown",
+            email=req.email,
             message=req.message,
             response="",
             latency_ms=round(latency, 2),
@@ -309,17 +356,50 @@ def chat(req: ChatRequest):
 
 
 @router.post("/session", response_model=SessionCreateResponse)
-def create_session():
+def create_session(req: SessionCreateRequest):
     ensure_agent_initialized()
-    sid = new_session_id()
+
+    # Create new session ID
+    new_sid = str(uuid.uuid4())
+
+    # Set up the user context
+    backend.user_email = req.email.strip().lower()
+    backend.session_id = new_sid
+
     # Create empty history for new session
-    backend.chatmap[sid] = backend.InMemoryChatMessageHistory()
-    return SessionCreateResponse(session_id=sid)
+    backend.chatmap[new_sid] = backend.InMemoryChatMessageHistory()
+
+    return SessionCreateResponse(session_id=new_sid, email=req.email)
 
 
 @router.get("/session/{session_id}/history", response_model=SessionHistoryResponse)
-def get_history(session_id: str, limit: int = 100):
+def get_history(session_id: str, email: str, limit: int = 100):
     ensure_agent_initialized()
+
+    # Set up user context to ensure proper access
+    backend.user_email = email.strip().lower()
+
+    # Try to load the specific session if not already in memory
+    if session_id not in backend.chatmap:
+        # Try to load from MongoDB
+        if backend.db_client:
+            db2 = backend.db_client[backend.CHATS_DB_NAME]
+            chats_collection = db2[backend.CHATS_COLLECTION_NAME]
+            session_data = chats_collection.find_one({"_id": session_id})
+
+            if session_data and session_data.get("user_email") == email and "messages" in session_data:
+                history = backend.InMemoryChatMessageHistory()
+                for msg in session_data["messages"]:
+                    if msg['type'] == 'human':
+                        history.add_message(backend.HumanMessage(content=msg['content']))
+                    else:
+                        history.add_message(backend.AIMessage(content=msg['content']))
+                backend.chatmap[session_id] = history
+            else:
+                raise HTTPException(status_code=404, detail="Session not found or access denied")
+        else:
+            raise HTTPException(status_code=404, detail="Session not found")
+
     history = backend.chatmap.get(session_id)
     if not history:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -329,7 +409,98 @@ def get_history(session_id: str, limit: int = 100):
     for m in msgs:
         role = "user" if m.type == "human" else "assistant"
         out.append(HistoryMessage(role=role, content=m.content, timestamp=None))
-    return SessionHistoryResponse(session_id=session_id, messages=out, count=len(out))
+
+    return SessionHistoryResponse(
+        session_id=session_id,
+        email=email,
+        messages=out,
+        count=len(out)
+    )
+
+
+@router.get("/user/{email:path}/sessions", response_model=UserSessionsResponse)
+def get_user_sessions(email: str):
+    """Get all sessions for a specific user"""
+    ensure_agent_initialized()
+
+    if not backend.db_client:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    # --- Start of New Debug Code ---
+    print("\n" + "="*50)
+    print("--- DEBUGGING /user/{email}/sessions ---")
+    print(f"1. Raw 'email' parameter received from URL: '{email}'")
+
+    # URL decode and normalize email
+    decoded_email = unquote(email).strip().lower()
+    print(f"2. Decoded, stripped, and lowercased email: '{decoded_email}'")
+
+    db1 = backend.db_client[backend.METADATA_DB_NAME]
+    metadata_collection = db1[backend.METADATA_COLLECTION_NAME]
+    print(f"3. Accessing Collection: '{backend.METADATA_DB_NAME}.{backend.METADATA_COLLECTION_NAME}'")
+
+    query = {"_id": decoded_email}
+    print(f"4. Executing MongoDB query: {query}")
+
+    user_metadata = metadata_collection.find_one(query)
+    print(f"5. MongoDB query result: {user_metadata}")
+    # --- End of New Debug Code ---
+
+    if not user_metadata:
+        # This part is the source of the 404 error if the query result is None
+        print("6. User not found in database. Raising 404 HTTPException.")
+        print("="*50 + "\n")
+        all_users = list(metadata_collection.find({}, {"_id": 1}).limit(10))
+        raise HTTPException(
+            status_code=404,
+            detail=f"User not found for query: {query}. Is the _id in the database exactly '{decoded_email}'? "
+                   f"Sample of _ids found: {[u['_id'] for u in all_users]}"
+        )
+
+    print("6. User FOUND in database. Proceeding...")
+
+    if not user_metadata.get("sessions"):
+        print("7. User found, but has no 'sessions' array. Returning empty list.")
+        print("="*50 + "\n")
+        return UserSessionsResponse(email=decoded_email, sessions=[], count=0)
+
+    print(f"7. User has {len(user_metadata.get('sessions', []))} session(s). Fetching details...")
+
+    # Get message counts for each session from db2
+    db2 = backend.db_client[backend.CHATS_DB_NAME]
+    chats_collection = db2[backend.CHATS_COLLECTION_NAME]
+
+    session_infos = []
+    for session_info in user_metadata["sessions"]:
+        session_id = session_info["session_id"]
+        last_updated = session_info.get("last_updated", "Unknown")
+
+        # Get message count from the actual session data
+        session_data = chats_collection.find_one({"_id": session_id})
+        message_count = len(session_data.get("messages", [])) if session_data else 0
+
+        # Handle different datetime formats
+        if hasattr(last_updated, 'isoformat'):
+            last_updated_str = last_updated.isoformat()
+        elif isinstance(last_updated, str):
+            last_updated_str = last_updated
+        else:
+            last_updated_str = str(last_updated)
+
+        session_infos.append(UserSessionInfo(
+            session_id=session_id,
+            last_updated=last_updated_str,
+            message_count=message_count
+        ))
+
+    print("8. Successfully processed all sessions.")
+    print("="*50 + "\n")
+
+    return UserSessionsResponse(
+        email=decoded_email,
+        sessions=session_infos,
+        count=len(session_infos)
+    )
 
 
 @app.get("/health")
@@ -341,6 +512,9 @@ def health():
         "uptime_seconds": round(uptime, 2),
         "model_initialized": _app_graph is not None,
         "active_sessions": len(backend.chatmap) if hasattr(backend, 'chatmap') else 0,
+        "mongodb_connected": backend.db_client is not None,
+        "current_user": getattr(backend, 'user_email', None),
+        "current_session": getattr(backend, 'session_id', None),
     }
 
 
@@ -351,17 +525,19 @@ def health():
 def on_startup():
     try:
         ensure_agent_initialized()
+        print("✅ API Server initialized successfully")
     except Exception as e:
         # Log error (print fallback)
-        print(f"[startup] Initialization failed: {e}")
+        print(f"❌ [startup] Initialization failed: {e}")
 
 
 @app.on_event("shutdown")
 def on_shutdown():
     try:
         backend.save_chat_history()
+        print("✅ Chat history saved on shutdown")
     except Exception as e:
-        print(f"[shutdown] Failed to persist history: {e}")
+        print(f"⚠️ [shutdown] Failed to persist history: {e}")
 
 
 # Register router last

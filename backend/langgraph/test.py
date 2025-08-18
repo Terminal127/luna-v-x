@@ -6,7 +6,7 @@ import requests
 import subprocess
 
 import time
-
+from urllib.parse import quote, unquote
 import readline
 from datetime import datetime
 from langchain_google_genai import ChatGoogleGenerativeAI
