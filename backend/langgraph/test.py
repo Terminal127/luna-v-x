@@ -65,7 +65,12 @@ PROJECT_ROOT.mkdir(exist_ok=True)
 # Authorization settings - tools that require user permission
 REQUIRES_AUTHORIZATION = {
     "read_gmail_messages": "This will read your Gmail messages. Do you want to proceed?",
-    "send_gmail_message": "This will send a gmail to the appopriate authority, Fo you want to proceed"
+    "send_gmail_message": "This will send a gmail to the appopriate authority, Fo you want to proceed",
+    "create_calendar_event": "This will create a calendar event. Do you want to proceed?",
+    "update_calendar_event": "This will update a calendar event. Do you want to proceed?",
+    "delete_calendar_event": "This will delete a calendar event. Do you want to proceed?",
+    "create_meet_space": "This will create a meet space. Do you want to proceed?",
+    "end_meet_space": "This will end a meet space. Do you want to proceed?"
 }
 
 
@@ -149,14 +154,6 @@ def calculate(expression: str) -> str:
         return "Error: Division by zero"
     except Exception as e:
         return f"Error calculating: {e}"
-
-@tool
-def get_weather(city: str) -> str:
-    """Get current weather information for a city."""
-    try:
-        return f"Mock weather data for {city}: Sunny, 22°C, Light breeze"
-    except Exception as e:
-        return f"Error getting weather: {str(e)}"
 
 @tool
 def file_operations(operation: str, filename: str, content: str = "") -> str:
@@ -418,12 +415,513 @@ def send_gmail_message(to: str, title: str, body: str):
     except Exception as e:
         return f"⚠️ Error sending message: {str(e)}"
 
+@tool
+def create_calendar_event(
+    summary: str,
+    start_datetime: str,
+    end_datetime: str,
+    description: Optional[str] = None,
+    location: Optional[str] = None,
+    attendees: Optional[str] = None,
+    timezone: str = "UTC",
+    calendar_id: str = "primary"
+) -> str:
+    """
+    Create a new Google Calendar event.
+
+    Args:
+        summary: Event title/summary (required)
+        start_datetime: Start time in ISO format (YYYY-MM-DDTHH:MM:SS) or YYYY-MM-DD for all-day
+        end_datetime: End time in ISO format (YYYY-MM-DDTHH:MM:SS) or YYYY-MM-DD for all-day
+        description: Event description (optional)
+        location: Event location (optional)
+        attendees: Comma-separated email addresses (optional)
+        timezone: Timezone (default: UTC)
+        calendar_id: Calendar ID (default: primary)
+
+    Example:
+        create_calendar_event("Team Meeting", "2024-01-15T14:00:00", "2024-01-15T15:00:00",
+                             description="Weekly sync", attendees="john@example.com,jane@example.com")
+    """
+    try:
+        access_token = get_user_access_token(user_email)
+        if not access_token:
+            return f"❌ No access token found for {user_email}. Please login first."
+
+        # Parse datetime and determine if all-day event
+        is_all_day = len(start_datetime) == 10  # YYYY-MM-DD format
+
+        if is_all_day:
+            start_time = {"date": start_datetime}
+            end_time = {"date": end_datetime}
+        else:
+            start_time = {"dateTime": start_datetime, "timeZone": timezone}
+            end_time = {"dateTime": end_datetime, "timeZone": timezone}
+
+        # Build event object
+        event = {
+            "summary": summary,
+            "start": start_time,
+            "end": end_time
+        }
+
+        if description:
+            event["description"] = description
+
+        if location:
+            event["location"] = location
+
+        if attendees:
+            attendee_list = [{"email": email.strip()} for email in attendees.split(",")]
+            event["attendees"] = attendee_list
+
+        # Make API request
+        url = f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(url, headers=headers, json=event)
+
+        if response.status_code == 200:
+            result = response.json()
+            event_link = result.get("htmlLink", "No link available")
+            return f"✅ Calendar event created successfully!\n📅 Title: {summary}\n🔗 Link: {event_link}\n📍 Event ID: {result.get('id')}"
+        else:
+            return f"❌ Failed to create calendar event: {response.status_code} {response.text}"
+
+    except Exception as e:
+        return f"⚠️ Error creating calendar event: {str(e)}"
+
+
+@tool
+def list_calendar_events(
+    time_min: Optional[str] = None,
+    time_max: Optional[str] = None,
+    max_results: int = 10,
+    calendar_id: str = "primary",
+    order_by: str = "startTime"
+) -> str:
+    """
+    List Google Calendar events.
+
+    Args:
+        time_min: Lower bound for event start time (ISO format, optional - defaults to now)
+        time_max: Upper bound for event start time (ISO format, optional - defaults to 1 week from now)
+        max_results: Maximum number of events to return (1-250, default: 10)
+        calendar_id: Calendar ID (default: primary)
+        order_by: Order results by 'startTime' or 'updated' (default: startTime)
+
+    Example:
+        list_calendar_events(max_results=5)
+        list_calendar_events(time_min="2024-01-15T00:00:00Z", time_max="2024-01-20T23:59:59Z")
+    """
+    try:
+        access_token = get_user_access_token(user_email)
+        if not access_token:
+            return f"❌ No access token found for {user_email}. Please login first."
+
+        # Set default time range if not provided
+        if not time_min:
+            time_min = datetime.utcnow().isoformat() + 'Z'
+        if not time_max:
+            time_max = (datetime.utcnow() + timedelta(days=7)).isoformat() + 'Z'
+
+        # Build parameters
+        params = {
+            "timeMin": time_min,
+            "timeMax": time_max,
+            "maxResults": min(max_results, 250),
+            "singleEvents": "true",
+            "orderBy": order_by
+        }
+
+        url = f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events"
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        response = requests.get(url, headers=headers, params=params)
+
+        if response.status_code != 200:
+            return f"❌ Failed to fetch calendar events: {response.status_code} {response.text}"
+
+        events = response.json().get("items", [])
+
+        if not events:
+            return "📅 No events found in the specified time range."
+
+        result_string = f"📅 Found {len(events)} calendar events:\n\n"
+
+        for i, event in enumerate(events, 1):
+            title = event.get("summary", "(No Title)")
+            event_id = event.get("id", "Unknown")
+
+            # Handle start time
+            start = event.get("start", {})
+            if "dateTime" in start:
+                start_time = start["dateTime"]
+                event_type = "📍 Timed Event"
+            else:
+                start_time = start.get("date", "Unknown")
+                event_type = "📅 All-day Event"
+
+            # Handle end time
+            end = event.get("end", {})
+            if "dateTime" in end:
+                end_time = end["dateTime"]
+            else:
+                end_time = end.get("date", "Unknown")
+
+            description = event.get("description", "")[:200] + ("..." if len(event.get("description", "")) > 200 else "")
+            location = event.get("location", "")
+            attendees = event.get("attendees", [])
+            attendee_emails = [att.get("email", "") for att in attendees]
+
+            result_string += f"{'='*60}\n"
+            result_string += f"📋 EVENT {i} - ID: {event_id}\n"
+            result_string += f"{'='*60}\n"
+            result_string += f"📝 Title: {title}\n"
+            result_string += f"⏰ Type: {event_type}\n"
+            result_string += f"🕐 Start: {start_time}\n"
+            result_string += f"🕑 End: {end_time}\n"
+
+            if location:
+                result_string += f"📍 Location: {location}\n"
+            if attendee_emails:
+                result_string += f"👥 Attendees: {', '.join(attendee_emails)}\n"
+            if description:
+                result_string += f"📄 Description: {description}\n"
+
+            result_string += f"🔗 Link: {event.get('htmlLink', 'No link')}\n\n"
+
+        return result_string
+
+    except Exception as e:
+        return f"⚠️ Error listing calendar events: {str(e)}"
+
+
+@tool
+def update_calendar_event(
+    event_id: str,
+    summary: Optional[str] = None,
+    start_datetime: Optional[str] = None,
+    end_datetime: Optional[str] = None,
+    description: Optional[str] = None,
+    location: Optional[str] = None,
+    attendees: Optional[str] = None,
+    timezone: str = "UTC",
+    calendar_id: str = "primary"
+) -> str:
+    """
+    Update an existing Google Calendar event.
+
+    Args:
+        event_id: The ID of the event to update (required)
+        summary: New event title/summary (optional)
+        start_datetime: New start time in ISO format (optional)
+        end_datetime: New end time in ISO format (optional)
+        description: New event description (optional)
+        location: New event location (optional)
+        attendees: New comma-separated email addresses (optional)
+        timezone: Timezone (default: UTC)
+        calendar_id: Calendar ID (default: primary)
+
+    Example:
+        update_calendar_event("event123", summary="Updated Meeting Title", location="Conference Room B")
+    """
+    try:
+        access_token = get_user_access_token(user_email)
+        if not access_token:
+            return f"❌ No access token found for {user_email}. Please login first."
+
+        # First, get the existing event
+        url = f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}"
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            return f"❌ Failed to fetch event: {response.status_code} {response.text}"
+
+        event = response.json()
+
+        # Update only provided fields
+        if summary is not None:
+            event["summary"] = summary
+
+        if start_datetime is not None:
+            is_all_day = len(start_datetime) == 10
+            if is_all_day:
+                event["start"] = {"date": start_datetime}
+            else:
+                event["start"] = {"dateTime": start_datetime, "timeZone": timezone}
+
+        if end_datetime is not None:
+            is_all_day = len(end_datetime) == 10
+            if is_all_day:
+                event["end"] = {"date": end_datetime}
+            else:
+                event["end"] = {"dateTime": end_datetime, "timeZone": timezone}
+
+        if description is not None:
+            event["description"] = description
+
+        if location is not None:
+            event["location"] = location
+
+        if attendees is not None:
+            attendee_list = [{"email": email.strip()} for email in attendees.split(",")]
+            event["attendees"] = attendee_list
+
+        # Update the event
+        response = requests.put(url, headers={**headers, "Content-Type": "application/json"}, json=event)
+
+        if response.status_code == 200:
+            result = response.json()
+            return f"✅ Calendar event updated successfully!\n📅 Title: {result.get('summary')}\n🔗 Link: {result.get('htmlLink')}"
+        else:
+            return f"❌ Failed to update calendar event: {response.status_code} {response.text}"
+
+    except Exception as e:
+        return f"⚠️ Error updating calendar event: {str(e)}"
+
+
+@tool
+def delete_calendar_event(event_id: str, calendar_id: str = "primary") -> str:
+    """
+    Delete a Google Calendar event.
+
+    Args:
+        event_id: The ID of the event to delete (required)
+        calendar_id: Calendar ID (default: primary)
+
+    Example:
+        delete_calendar_event("event123")
+    """
+    try:
+        access_token = get_user_access_token(user_email)
+        if not access_token:
+            return f"❌ No access token found for {user_email}. Please login first."
+
+        url = f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}"
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        response = requests.delete(url, headers=headers)
+
+        if response.status_code == 204:
+            return f"✅ Calendar event deleted successfully! Event ID: {event_id}"
+        elif response.status_code == 404:
+            return f"❌ Event not found: {event_id}"
+        else:
+            return f"❌ Failed to delete calendar event: {response.status_code} {response.text}"
+
+    except Exception as e:
+        return f"⚠️ Error deleting calendar event: {str(e)}"
+
+
+@tool
+def create_meet_space(
+    display_name: Optional[str] = None,
+    description: Optional[str] = None
+) -> str:
+    """
+    Create a new Google Meet space.
+
+    Args:
+        display_name: Display name for the Meet space (optional)
+        description: Description for the Meet space (optional)
+
+    Example:
+        create_meet_space("Team Standup", "Daily team sync meeting")
+    """
+    try:
+        access_token = get_user_access_token(user_email)
+        if not access_token:
+            return f"❌ No access token found for {user_email}. Please login first."
+
+        # Build space object
+        space = {}
+        if display_name:
+            space["displayName"] = display_name
+        if description:
+            space["description"] = description
+
+        url = "https://meet.googleapis.com/v2/spaces"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(url, headers=headers, json=space)
+
+        if response.status_code == 200:
+            result = response.json()
+            space_name = result.get("name", "Unknown")
+            meeting_uri = result.get("meetingUri", "No URI available")
+            meeting_code = result.get("meetingCode", "No code available")
+
+            return f"✅ Google Meet space created successfully!\n📹 Space Name: {space_name}\n🔗 Meeting URI: {meeting_uri}\n🔢 Meeting Code: {meeting_code}\n📝 Display Name: {result.get('displayName', 'Not set')}"
+        else:
+            return f"❌ Failed to create Meet space: {response.status_code} {response.text}"
+
+    except Exception as e:
+        return f"⚠️ Error creating Meet space: {str(e)}"
+
+
+@tool
+def get_meet_space(space_name: str) -> str:
+    """
+    Get information about a Google Meet space.
+
+    Args:
+        space_name: The name/ID of the Meet space (required)
+                   Format: "spaces/{space_id}" or just the space_id
+
+    Example:
+        get_meet_space("spaces/abc123def")
+        get_meet_space("abc123def")
+    """
+    try:
+        access_token = get_user_access_token(user_email)
+        if not access_token:
+            return f"❌ No access token found for {user_email}. Please login first."
+
+        # Ensure proper format
+        if not space_name.startswith("spaces/"):
+            space_name = f"spaces/{space_name}"
+
+        url = f"https://meet.googleapis.com/v2/{space_name}"
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            result = response.json()
+
+            space_info = f"📹 Google Meet Space Information:\n"
+            space_info += f"{'='*50}\n"
+            space_info += f"🏷️ Space Name: {result.get('name', 'Unknown')}\n"
+            space_info += f"📝 Display Name: {result.get('displayName', 'Not set')}\n"
+            space_info += f"📄 Description: {result.get('description', 'Not set')}\n"
+            space_info += f"🔗 Meeting URI: {result.get('meetingUri', 'Not available')}\n"
+            space_info += f"🔢 Meeting Code: {result.get('meetingCode', 'Not available')}\n"
+
+            config = result.get('config', {})
+            if config:
+                space_info += f"⚙️ Configuration:\n"
+                space_info += f"  🎥 Entry Point Access: {config.get('entryPointAccess', 'Unknown')}\n"
+                space_info += f"  🔐 Access Type: {config.get('accessType', 'Unknown')}\n"
+
+            active_conference = result.get('activeConference', {})
+            if active_conference:
+                space_info += f"🔴 Active Conference:\n"
+                space_info += f"  📛 Conference Record: {active_conference.get('conferenceRecord', 'None')}\n"
+            else:
+                space_info += f"⚪ No active conference\n"
+
+            return space_info
+        else:
+            return f"❌ Failed to get Meet space: {response.status_code} {response.text}"
+
+    except Exception as e:
+        return f"⚠️ Error getting Meet space: {str(e)}"
+
+
+@tool
+def end_meet_space(space_name: str) -> str:
+    """
+    End an active Google Meet space.
+
+    Args:
+        space_name: The name/ID of the Meet space to end (required)
+                   Format: "spaces/{space_id}" or just the space_id
+
+    Example:
+        end_meet_space("spaces/abc123def")
+        end_meet_space("abc123def")
+    """
+    try:
+        access_token = get_user_access_token(user_email)
+        if not access_token:
+            return f"❌ No access token found for {user_email}. Please login first."
+
+        # Ensure proper format
+        if not space_name.startswith("spaces/"):
+            space_name = f"spaces/{space_name}"
+
+        url = f"https://meet.googleapis.com/v2/{space_name}:endActiveConference"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(url, headers=headers, json={})
+
+        if response.status_code == 200:
+            return f"✅ Google Meet space ended successfully!\n📹 Space: {space_name}"
+        elif response.status_code == 404:
+            return f"❌ Meet space not found: {space_name}"
+        else:
+            return f"❌ Failed to end Meet space: {response.status_code} {response.text}"
+
+    except Exception as e:
+        return f"⚠️ Error ending Meet space: {str(e)}"
+
+
+@tool
+def list_calendar_list() -> str:
+    """
+    List all calendars accessible to the user.
+
+    Example:
+        list_calendar_list()
+    """
+    try:
+        access_token = get_user_access_token(user_email)
+        if not access_token:
+            return f"❌ No access token found for {user_email}. Please login first."
+
+        url = "https://www.googleapis.com/calendar/v3/users/me/calendarList"
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 200:
+            return f"❌ Failed to fetch calendar list: {response.status_code} {response.text}"
+
+        calendars = response.json().get("items", [])
+
+        if not calendars:
+            return "📅 No calendars found."
+
+        result_string = f"📅 Found {len(calendars)} calendars:\n\n"
+
+        for i, calendar in enumerate(calendars, 1):
+            calendar_id = calendar.get("id", "Unknown")
+            summary = calendar.get("summary", "No Title")
+            description = calendar.get("description", "")
+            access_role = calendar.get("accessRole", "Unknown")
+            primary = " (PRIMARY)" if calendar.get("primary", False) else ""
+
+            result_string += f"📋 Calendar {i}{primary}:\n"
+            result_string += f"   📛 ID: {calendar_id}\n"
+            result_string += f"   📝 Summary: {summary}\n"
+            result_string += f"   🔐 Access Role: {access_role}\n"
+            if description:
+                result_string += f"   📄 Description: {description}\n"
+            result_string += f"   🌈 Background Color: {calendar.get('backgroundColor', 'Not set')}\n\n"
+
+        return result_string
+
+    except Exception as e:
+        return f"⚠️ Error listing calendars: {str(e)}"
+
+
 # ==============================================================================
 #  AGENT AND GRAPH SETUP (No changes needed here)
 # ==============================================================================
 # Separate tools into safe and sensitive categories
-safe_tools = [get_current_time, calculate, get_weather, get_chat_history_summary, task_planner, youtube_search]
-sensitive_tools = [read_gmail_messages, send_gmail_message]
+safe_tools = [get_current_time, calculate, get_chat_history_summary, task_planner, youtube_search, list_calendar_events, get_meet_space, list_calendar_list]
+sensitive_tools = [read_gmail_messages, send_gmail_message,create_calendar_event,update_calendar_event, delete_calendar_event,create_meet_space, end_meet_space]
 sensitive_tool_names = {t.name for t in sensitive_tools}
 all_tools = safe_tools + sensitive_tools
 
@@ -505,20 +1003,137 @@ def create_agent_graph():
     """Create the LangGraph workflow with authorization"""
     model = setup_model()
     if not model: return None
+
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are Luna, an intelligent AI assistant powered by Google Gemini. Your role is to be helpful, concise, and use tools only when there is explicit user intent.
+        ("system", """You are Luna, an advanced AI assistant powered by Google Gemini with comprehensive productivity and automation capabilities. You have access to a powerful suite of tools for managing emails, calendars, meetings, files, web content, and system operations.
 
-        **Tool Usage Policy:**
-        1.  **Default to Knowledge:** Answer from your internal knowledge first for general questions.
-        2.  **Explicit Intent Required:** Only use a tool if the user's request explicitly asks for an action that requires it (e.g., "what is the time now?", "read my latest email", "search YouTube for...").
-        3.  **No Speculation:** Do not run tools based on assumptions. If a request is ambiguous, ask for clarification.
-        4.  **Sequential Narration for Multi-Tool Tasks:** For requests requiring multiple tools, narrate the results step-by-step. Example: "The current time is [result 1]. Now, checking your emails. You have a new email about [result 2]."
-        5.  **Transparency:** If a tool fails or you don't use one, state it clearly. Never claim to have performed an action you didn't.
+**🎯 CORE IDENTITY:**
+- **Name**: Luna - Your intelligent productivity companion
+- **Personality**: Professional, helpful, proactive, and detail-oriented
+- **Goal**: Maximize user productivity through intelligent automation and seamless task management
 
-        Current time: {time}"""),
+**🛠️ AVAILABLE TOOL CATEGORIES:**
+
+**📧 EMAIL MANAGEMENT (Gmail API)**
+- `read_gmail_messages`: Read and analyze Gmail messages with detailed content extraction
+- `send_gmail_message`: Compose and send professional emails to any recipient
+
+**📅 CALENDAR MANAGEMENT (Google Calendar API)**
+- `create_calendar_event`: Create meetings, appointments, and events with full details
+- `list_calendar_events`: View upcoming events with filtering and date range options
+- `update_calendar_event`: Modify existing events (time, location, attendees, etc.)
+- `delete_calendar_event`: Remove events from calendar
+- `list_calendar_list`: View all available calendars
+
+**🎥 MEETING MANAGEMENT (Google Meet API)**
+- `create_meet_space`: Generate new Meet rooms for video conferences
+- `get_meet_space`: Retrieve meeting details, links, and status
+- `end_meet_space`: Terminate active meeting sessions
+
+**💻 SYSTEM & FILE OPERATIONS**
+- `file_operations`: Read, write, and list files in current directory (secure sandbox)
+- `run_command`: Execute safe shell commands (ls, pwd, date, etc.)
+- `get_current_time`: Get precise current date and time
+- `calculate`: Perform mathematical calculations safely
+
+**🌐 WEB & CONTENT TOOLS**
+- `youtube_search`: Search YouTube for videos, channels, and playlists with detailed results
+- `chrome_tab_controller`: Control browser tabs (requires WebSocket server)
+- `get_weather`: Get weather information for any city
+
+**🧠 PRODUCTIVITY & ANALYSIS**
+- `task_planner`: Break down complex requests into actionable steps
+- `get_chat_history_summary`: Analyze conversation context and history
+
+**⚡ INTELLIGENT TOOL USAGE POLICY:**
+
+**1. PROACTIVE ASSISTANCE**
+- Anticipate user needs based on context and time patterns
+- Suggest relevant actions (e.g., "Shall I schedule this as a calendar event?")
+- Combine multiple tools intelligently for complex workflows
+
+**2. SMART AUTOMATION WORKFLOWS**
+- **Meeting Setup**: Create calendar event → Generate Meet space → Send invites → Confirm details
+- **Email Management**: Read messages → Identify action items → Create events → Send responses
+- **Content Research**: YouTube search → File operations → Summary creation
+- **Schedule Management**: List events → Check conflicts → Suggest optimal times
+
+**3. CONTEXT-AWARE DECISION MAKING**
+- Use `get_current_time` to understand scheduling context
+- Check `get_chat_history_summary` for ongoing task continuity
+- Apply `task_planner` for multi-step operations
+- Prioritize time-sensitive tasks (meetings, deadlines)
+
+**4. EXPLICIT INTENT RECOGNITION**
+- **Calendar Triggers**: "schedule", "meeting", "appointment", "book", "calendar"
+- **Email Triggers**: "send email", "check messages", "email", "reply"
+- **Meeting Triggers**: "video call", "meet", "conference", "zoom alternative"
+- **File Triggers**: "save", "read file", "write", "document"
+- **Search Triggers**: "find videos", "youtube", "search for"
+
+**5. PROFESSIONAL COMMUNICATION STANDARDS**
+- Format calendar events with proper business etiquette
+- Compose emails with appropriate tone and structure
+- Use professional meeting naming conventions
+- Provide clear, actionable confirmations
+
+**6. MULTI-TOOL ORCHESTRATION EXAMPLES**
+
+*User: "Set up a team meeting for tomorrow at 2 PM"*
+→ 1. `get_current_time` (determine exact date)
+→ 2. `create_calendar_event` (create event)
+→ 3. `create_meet_space` (generate meeting link)
+→ 4. `update_calendar_event` (add Meet link to description)
+→ 5. Provide complete meeting details
+
+*User: "Check my emails and create events for any meetings mentioned"*
+→ 1. `read_gmail_messages` (scan recent emails)
+→ 2. Extract meeting requests from content
+→ 3. `create_calendar_event` for each identified meeting
+→ 4. `send_gmail_message` with confirmations if needed
+
+*User: "Find tutorials on Python and save the links"*
+→ 1. `youtube_search` (find Python tutorials)
+→ 2. `file_operations` (save links to file)
+→ 3. Provide organized summary
+
+**7. ERROR HANDLING & USER COMMUNICATION**
+- Always explain what tools are being used and why
+- Provide clear status updates during multi-step operations
+- Offer alternatives if primary approach fails
+- Ask for clarification only when truly ambiguous
+
+**8. SECURITY & AUTHORIZATION AWARENESS**
+- Respect user authorization decisions for sensitive operations
+- Clearly explain what data will be accessed or modified
+- Provide summaries of completed actions for transparency
+- Never assume permissions for destructive operations
+
+**9. TIME-SENSITIVE INTELLIGENCE**
+- Prioritize urgent requests (same-day meetings, immediate emails)
+- Consider business hours for scheduling suggestions
+- Account for time zones in multi-participant events
+- Suggest optimal timing based on calendar availability
+
+**10. CONTINUOUS WORKFLOW OPTIMIZATION**
+- Remember user preferences from conversation history
+- Adapt communication style to user's professional context
+- Suggest process improvements for recurring tasks
+- Learn from successful multi-tool sequences
+
+**🎯 RESPONSE FRAMEWORK:**
+1. **Acknowledge** the request with understanding
+2. **Plan** the approach using multiple tools if beneficial
+3. **Execute** tools in logical sequence with status updates
+4. **Summarize** results with actionable next steps
+5. **Anticipate** follow-up needs and offer proactive suggestions
+
+**⏰ Current Context**: {time}
+**🎪 Remember**: You're not just executing individual tools - you're orchestrating intelligent workflows that save time and enhance productivity. Think like a executive assistant who can seamlessly handle complex, multi-step business operations."""),
         MessagesPlaceholder(variable_name="messages"),
     ]).partial(time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
+    # Rest of your existing agent_runnable and workflow setup remains the same
     agent_runnable = prompt | model.bind_tools(all_tools)
     class Assistant:
         def __init__(self, runnable): self.runnable = runnable

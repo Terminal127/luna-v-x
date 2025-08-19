@@ -105,11 +105,54 @@ const handler = NextAuth({
         params: {
           prompt: "consent",
           access_type: "offline",
-          scope:
-            "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
+          scope: [
+            // Basic profile scopes
+            "openid",
+            "email",
+            "profile",
+
+            // Gmail scopes (existing)
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/gmail.compose",
+
+            // Google Drive scopes - Full access
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive.metadata",
+            "https://www.googleapis.com/auth/drive.scripts",
+            "https://www.googleapis.com/auth/drive.addons.metadata.readonly",
+
+            // Google Calendar scopes - Full access
+            "https://www.googleapis.com/auth/calendar",
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/calendar.settings.readonly",
+            "https://www.googleapis.com/auth/calendar.addons.execute",
+
+            // Google Meet scopes
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly",
+
+            // Additional Google Workspace scopes for comprehensive access
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/presentations",
+            "https://www.googleapis.com/auth/forms",
+
+            // Google Photos (if needed)
+            "https://www.googleapis.com/auth/photoslibrary",
+            "https://www.googleapis.com/auth/photoslibrary.sharing",
+
+            // YouTube (if needed for integration)
+            "https://www.googleapis.com/auth/youtube",
+            "https://www.googleapis.com/auth/youtube.upload",
+          ].join(" "),
         },
       },
     }),
+
     GithubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
