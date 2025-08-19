@@ -23,6 +23,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ChatSidebar } from "../../components/chat-sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+import LunaAvatar from "/luna-avatar.jpg";
 
 export function LoaderThreeDemo() {
   return <LoaderThree />;
@@ -67,6 +68,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = "Button";
 
+// --- INTERFACES ---
 interface ToolEvent {
   tool: string;
   args: { [key: string]: any };
@@ -84,13 +86,21 @@ interface Message {
   tool_events?: ToolEvent[];
 }
 
+interface UserSession {
+  session_id: string;
+  last_updated: string;
+  message_count: number;
+}
+
 export default function ChatPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
+  // --- ALL STATE VARIABLES ---
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
   const [sessionId, setSessionId] = useState<string>("");
+  const [userSessions, setUserSessions] = useState<UserSession[]>([]);
   const [apiStatus, setApiStatus] = useState<
     "connecting" | "connected" | "error"
   >("connecting");
@@ -103,9 +113,11 @@ export default function ChatPage() {
   const [typingEffectEnabled, setTypingEffectEnabled] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
+  const [hasAnimatedIn, setHasAnimatedIn] = useState(false);
 
   const flipWords = ["helpful", "creative", "intelligent", "powerful"];
 
+  // --- ALL REFS ---
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatLayoutRef = useRef<HTMLDivElement>(null);
   const welcomeHeaderRef = useRef<HTMLDivElement>(null);
@@ -123,55 +135,153 @@ export default function ChatPage() {
     [],
   );
 
-  // Authentication check
-  useEffect(() => {
-    if (status === "loading") return; // Still loading
+  const resetChatUI = useCallback(() => {
+    setMessages([]);
+    setHasAnimatedIn(false);
+  }, []);
 
-    if (status === "unauthenticated") {
-      router.push("/login");
-      return;
-    }
-
-    // User is authenticated, proceed with session initialization
-    const initSession = async () => {
+  // --- SESSION MANAGEMENT FUNCTIONS ---
+  const fetchSessionHistory = useCallback(
+    async (sessionId: string, email: string) => {
       try {
-        await fetch("http://localhost:8000/health");
+        const response = await fetch(
+          `http://localhost:8000/api/session/${sessionId}/history?email=${email}`,
+        );
+        if (!response.ok) throw new Error("Failed to fetch session history");
+        const data = await response.json();
+        const formattedMessages: Message[] = data.messages.map(
+          (msg: any, index: number) => ({
+            id: Date.now() + index,
+            content: msg.content,
+            role: msg.role === "assistant" ? "assistant" : "user",
+            timestamp: msg.timestamp || new Date().toISOString(),
+          }),
+        );
+
+        setSessionId(sessionId);
+        setMessages(formattedMessages);
+
+        if (formattedMessages.length > 0) {
+          setHasAnimatedIn(true);
+        } else {
+          resetChatUI();
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("Could not load session history.");
+      }
+    },
+    [resetChatUI],
+  );
+
+  const createNewSession = useCallback(
+    async (email: string) => {
+      try {
         const response = await fetch("http://localhost:8000/api/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
         });
+        if (!response.ok) throw new Error("Failed to create new session");
         const data = await response.json();
         setSessionId(data.session_id);
-        setApiStatus("connected");
+        resetChatUI();
+        toast.success("New chat created!");
+        return data.session_id;
       } catch (error) {
+        console.error(error);
+        toast.error("Could not create a new chat.");
+        return null;
+      }
+    },
+    [resetChatUI],
+  );
+
+  // --- MAIN INITIALIZATION HOOK ---
+  useEffect(() => {
+    if (status !== "authenticated" || !session?.user?.email) {
+      if (status === "unauthenticated") router.push("/login");
+      return;
+    }
+
+    const initUserAndSessions = async () => {
+      const email = session.user!.email!;
+      setIsPageLoading(true);
+      setApiStatus("connecting");
+      try {
+        await fetch("http://localhost:8000/health");
+        setApiStatus("connected");
+        const sessionsResponse = await fetch(
+          `http://localhost:8000/api/user/${email}/sessions`,
+        );
+        if (sessionsResponse.status === 404) {
+          await createNewSession(email);
+          setUserSessions([]);
+        } else if (!sessionsResponse.ok) {
+          throw new Error(
+            `Failed to fetch sessions. Server responded with ${sessionsResponse.status}`,
+          );
+        } else {
+          const sessionsData = await sessionsResponse.json();
+          setUserSessions(sessionsData.sessions);
+          if (sessionsData.sessions && sessionsData.sessions.length > 0) {
+            await fetchSessionHistory(
+              sessionsData.sessions[0].session_id,
+              email,
+            );
+          } else {
+            await createNewSession(email);
+          }
+        }
+      } catch (error) {
+        console.error("Initialization failed:", error);
         setApiStatus("error");
+        toast.error(
+          (error as Error).message || "Failed to initialize chat session.",
+        );
       } finally {
-        // Simulate a delay for demonstration purposes
-        setTimeout(() => {
-          setIsPageLoading(false);
-        }, 1000); // Adjust the delay as needed
+        setIsPageLoading(false);
       }
     };
 
-    if (status === "authenticated") {
-      initSession();
-    }
-  }, [status, router]);
+    initUserAndSessions();
+  }, [status, session, router, fetchSessionHistory, createNewSession]);
 
-  // Periodic token refresh every 5 minutes
+  // --- HANDLERS TO PASS TO SIDEBAR ---
+  const handleCreateNewSession = async () => {
+    if (!session?.user?.email) return;
+    const newSessionId = await createNewSession(session.user.email);
+    if (newSessionId) {
+      const sessionsResponse = await fetch(
+        `http://localhost:8000/api/user/${session.user.email}/sessions`,
+      );
+      if (sessionsResponse.ok) {
+        const sessionsData = await sessionsResponse.json();
+        setUserSessions(sessionsData.sessions);
+      }
+    }
+  };
+
+  const handleSelectSession = async (selectedSessionId: string) => {
+    if (!session?.user?.email || selectedSessionId === sessionId) return;
+    setIsPageLoading(true);
+    await fetchSessionHistory(selectedSessionId, session.user.email);
+    setIsPageLoading(false);
+  };
+
+  // --- EXISTING HOOKS AND FUNCTIONS ---
   useEffect(() => {
     const interval = setInterval(
       async () => {
         if (status === "authenticated") {
-          console.log("🔄 Periodic token refresh check...");
           await getSession();
         }
       },
       5 * 60 * 1000,
-    ); // 5 minutes
-
+    );
     return () => clearInterval(interval);
   }, [status]);
+
   const smoothScrollToBottom = useCallback(() => {
     if (!chatContainerRef.current) return;
     requestAnimationFrame(() => {
@@ -185,33 +295,24 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    // Always scroll to bottom when messages change or typing updates
     smoothScrollToBottom();
   }, [messages, typingText, smoothScrollToBottom]);
-
-  // Ensure scrolling during message generation
   useEffect(() => {
-    if (currentGeneratingId !== null && typingText[currentGeneratingId]) {
+    if (currentGeneratingId !== null) {
       smoothScrollToBottom();
     }
   }, [typingText, currentGeneratingId, smoothScrollToBottom]);
-
-  // Handle scroll detection to show/hide scroll-to-bottom button
   useEffect(() => {
     const chatContainer = chatContainerRef.current;
     if (!chatContainer) return;
-
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = chatContainer;
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px threshold
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10;
       setShowScrollToBottom(!isAtBottom);
-
-      // Reset new messages count when user manually scrolls to bottom
       if (isAtBottom) {
         setNewMessagesCount(0);
       }
     };
-
     chatContainer.addEventListener("scroll", handleScroll);
     return () => chatContainer.removeEventListener("scroll", handleScroll);
   }, []);
@@ -233,18 +334,14 @@ export default function ChatPage() {
     }
   }, [messages]);
 
+  // --- MODIFIED ANIMATION HOOK ---
   useEffect(() => {
-    if (messages.length === 1 && chatLayoutRef.current) {
+    if (messages.length > 0 && !hasAnimatedIn && chatLayoutRef.current) {
       if (welcomeHeaderRef.current) {
         animate(welcomeHeaderRef.current, {
           opacity: 0,
           duration: 400,
           easing: "easeOutCubic",
-          complete: () => {
-            if (welcomeHeaderRef.current) {
-              welcomeHeaderRef.current.style.display = "none";
-            }
-          },
         });
       }
       if (chatLayoutRef.current) {
@@ -262,18 +359,23 @@ export default function ChatPage() {
           easing: "easeInOutSine",
         });
       }
+      setHasAnimatedIn(true);
     }
-  }, [messages.length]);
+  }, [messages.length, hasAnimatedIn]);
 
   const generateAssistantResponse = async (
     userMessage: string,
-    sessionId: string,
+    currentSessionId: string,
   ) => {
     try {
       const response = await fetch("http://localhost:8000/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId, message: userMessage }),
+        body: JSON.stringify({
+          email: session?.user?.email,
+          session_id: currentSessionId,
+          message: userMessage,
+        }),
       });
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -292,9 +394,7 @@ export default function ChatPage() {
 
   const handleTypingEffectChange = useCallback((enabled: boolean) => {
     setTypingEffectEnabled(enabled);
-
     if (!enabled) {
-      // When typing effect is disabled, show toast with undo option
       toast("Typing effect disabled", {
         description: "Messages will appear instantly",
         action: {
@@ -304,10 +404,9 @@ export default function ChatPage() {
             toast.success("Typing effect restored!");
           },
         },
-        duration: 5000, // 5 seconds to allow undo
+        duration: 5000,
       });
     } else {
-      // Optional: Show brief confirmation when enabled
       toast.success("Typing effect enabled");
     }
   }, []);
@@ -319,13 +418,9 @@ export default function ChatPage() {
   const onSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      if (!currentMessage.trim() || isLoading) return;
-
-      // Trigger token refresh by calling getSession
+      if (!currentMessage.trim() || isLoading || !sessionId) return;
       await getSession();
-
       const messageText = currentMessage.trim();
-      setCurrentMessage("");
       const userMessage: Message = {
         id: Date.now(),
         content: messageText,
@@ -333,9 +428,9 @@ export default function ChatPage() {
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, userMessage]);
+      setCurrentMessage("");
       setIsLoading(true);
 
-      // Immediately scroll to bottom for new user message
       setTimeout(() => {
         if (chatContainerRef.current) {
           chatContainerRef.current.scrollTop =
@@ -344,58 +439,28 @@ export default function ChatPage() {
         }
       }, 0);
 
-      // Capture tool_events from the response
       const { response: aiResponse, tool_events } =
         await generateAssistantResponse(messageText, sessionId);
       const assistantId = Date.now() + 1;
-
-      // Pass tool_events to the new message object
       const assistantMessage: Message = {
         id: assistantId,
-        content: aiResponse || "Sorry, I had an issue generating a response.",
+        content: aiResponse,
         role: "assistant",
         timestamp: new Date().toISOString(),
-        tool_events: tool_events,
+        tool_events,
       };
 
-      // Set loading to false before adding the new message
       setIsLoading(false);
-      setMessages((prev) => [...prev, assistantMessage]);
-      setCurrentGeneratingId(assistantId);
-
-      // Scroll to bottom for new assistant message
-      setTimeout(() => {
-        if (chatContainerRef.current) {
-          chatContainerRef.current.scrollTop =
-            chatContainerRef.current.scrollHeight;
-          setShowScrollToBottom(false);
-        }
-      }, 0);
 
       if (typingEffectEnabled) {
+        setMessages((prev) => [...prev, { ...assistantMessage, content: "" }]);
+        setCurrentGeneratingId(assistantId);
         const words = aiResponse.split(" ");
         let currentText = "";
         typingIntervalRef.current = setInterval(() => {
           if (words.length > 0) {
             currentText += (currentText ? " " : "") + words.shift();
             setTypingText((prev) => ({ ...prev, [assistantId]: currentText }));
-            // Immediate scroll during typing like Claude
-            requestAnimationFrame(() => {
-              if (chatContainerRef.current) {
-                chatContainerRef.current.scrollTop =
-                  chatContainerRef.current.scrollHeight;
-                setShowScrollToBottom(false); // Hide scroll button when auto-scrolling
-
-                // If user is scrolled up, increment new messages count
-                const { scrollTop, scrollHeight, clientHeight } =
-                  chatContainerRef.current;
-                const isAtBottom =
-                  scrollTop + clientHeight >= scrollHeight - 50;
-                if (!isAtBottom) {
-                  setNewMessagesCount((prev) => prev + 1);
-                }
-              }
-            });
           } else {
             if (typingIntervalRef.current)
               clearInterval(typingIntervalRef.current);
@@ -413,15 +478,17 @@ export default function ChatPage() {
           }
         }, 50);
       } else {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantId ? { ...msg, content: aiResponse } : msg,
-          ),
-        );
-        setCurrentGeneratingId(null);
+        setMessages((prev) => [...prev, assistantMessage]);
       }
     },
-    [currentMessage, isLoading, sessionId, typingEffectEnabled],
+    [
+      currentMessage,
+      isLoading,
+      sessionId,
+      typingEffectEnabled,
+      session,
+      generateAssistantResponse,
+    ],
   );
 
   const handleStopGeneration = useCallback(() => {
@@ -439,7 +506,7 @@ export default function ChatPage() {
     setCurrentGeneratingId(null);
   }, [currentGeneratingId, typingText]);
 
-  // Show loading while checking authentication or initializing
+  // --- RENDER LOGIC ---
   if (status === "loading" || isPageLoading) {
     return (
       <div
@@ -451,7 +518,6 @@ export default function ChatPage() {
     );
   }
 
-  // If not authenticated, don't render anything (redirect is handled in useEffect)
   if (status === "unauthenticated") {
     return null;
   }
@@ -462,43 +528,57 @@ export default function ChatPage() {
         className="h-screen w-full flex overflow-hidden"
         style={{ background: "#1a1b26" }}
       >
-        <ChatSidebar />
+        <ChatSidebar
+          sessions={userSessions}
+          activeSessionId={sessionId}
+          onSelectSession={handleSelectSession}
+          onCreateNewSession={handleCreateNewSession}
+        />
         <main className="flex-1 flex flex-col h-full overflow-hidden">
           <BackgroundBeams />
           <div
             ref={chatLayoutRef}
             className="relative z-10 flex flex-col h-full p-4 md:p-8 min-h-0"
-            style={{ justifyContent: "center" }}
+            style={{ justifyContent: hasAnimatedIn ? "flex-end" : "center" }}
           >
             <SidebarTrigger className="fixed top-4 left-4 z-50 text-[#c0caf5]/60 hover:text-[#c0caf5] hover:bg-[#24283b] rounded p-2 transition-colors" />
             <div
-              className={`w-full max-w-6xl mx-auto flex flex-col ${
-                messages.length > 0 ? "h-full" : "h-auto"
-              } min-h-0`}
+              className={`w-full max-w-6xl mx-auto flex flex-col ${hasAnimatedIn ? "h-full" : "h-auto"} min-h-0`}
             >
               <div
                 ref={welcomeHeaderRef}
+                style={{
+                  display: hasAnimatedIn ? "none" : "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                }}
                 className="text-center mb-4 flex-shrink-0"
               >
                 <div
                   className="text-3xl md:text-6xl font-bold mb-6"
                   style={{ color: "#c0caf5" }}
                 >
-                  Chat with a
-                  <FlipWords words={flipWords} className="text-white" />
-                  Luna
+                  Chat with a{" "}
+                  <FlipWords words={flipWords} className="text-white" /> Luna
                 </div>
                 <p className="text-neutral-400 mt-2">
-                  {apiStatus === "connecting"
-                    ? "Connecting..."
-                    : "How can I help you today?"}
+                  {apiStatus === "connecting" && "Connecting to server..."}
+                  {apiStatus === "connected" && "How can I help you today?"}
+                  {apiStatus === "error" && (
+                    <span className="text-red-400">
+                      Connection failed. Please refresh.
+                    </span>
+                  )}
                 </p>
               </div>
 
               <div
                 ref={chatWrapperRef}
                 className="flex-1 flex flex-col min-h-0"
-                style={{ opacity: 0, maxHeight: "0vh" }}
+                style={{
+                  opacity: hasAnimatedIn ? 1 : 0,
+                  maxHeight: hasAnimatedIn ? "100vh" : "0vh",
+                }}
               >
                 <div
                   className="flex-1 rounded-2xl shadow-2xl flex flex-col min-h-0"
@@ -519,16 +599,11 @@ export default function ChatPage() {
                         typingText={typingText}
                       />
                     ))}
-
-                    {/* ✅ MODIFIED: Show loader when isLoading is true */}
                     {isLoading && (
                       <div className="chat chat-start">
                         <div className="chat-image avatar">
-                          <div className="w-10 rounded-full">
-                            <img
-                              src="https://i.pinimg.com/1200x/80/da/fd/80dafd10e7f0aead92234fcd232fcbd2.jpg"
-                              alt="Luna Assistant"
-                            />
+                          <div className="w-10 rounded-full overflow-hidden">
+                            <img src="/luna-avatar.jpg" alt="Luna Assistant" />
                           </div>
                         </div>
                         <div className="chat-header text-[#c0caf5]">
@@ -559,35 +634,36 @@ export default function ChatPage() {
                       placeholders={placeholders}
                       onChange={handleChange}
                       onSubmit={onSubmit}
+                      value={currentMessage}
                     />
                   </div>
-
-                  {messages.length > 0 && (
-                    <div className="flex items-center gap-2 mr-3 transition-opacity duration-500">
-                      <label className="switch">
-                        <input
-                          id="typing-switch"
-                          type="checkbox"
-                          checked={typingEffectEnabled}
-                          onChange={(e) =>
-                            handleTypingEffectChange(e.target.checked)
-                          }
-                        />
-                        <span className="slider"></span>
-                      </label>
-                    </div>
-                  )}
-
-                  {currentGeneratingId !== null && (
-                    <Button
-                      onClick={handleStopGeneration}
-                      variant="destructive"
-                      size="icon"
-                      title="Stop generation"
-                      className="absolute right-20 top-1/2 -translate-y-1/2"
-                    >
-                      <span className="loading-spinner"></span>
-                    </Button>
+                  {hasAnimatedIn && (
+                    <>
+                      <div className="flex items-center gap-2 mr-3 transition-opacity duration-500">
+                        <label className="switch">
+                          <input
+                            id="typing-switch"
+                            type="checkbox"
+                            checked={typingEffectEnabled}
+                            onChange={(e) =>
+                              handleTypingEffectChange(e.target.checked)
+                            }
+                          />
+                          <span className="slider"></span>
+                        </label>
+                      </div>
+                      {currentGeneratingId !== null && (
+                        <Button
+                          onClick={handleStopGeneration}
+                          variant="destructive"
+                          size="icon"
+                          title="Stop generation"
+                          className="absolute right-20 top-1/2 -translate-y-1/2"
+                        >
+                          <span className="loading-spinner"></span>
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -645,7 +721,6 @@ export default function ChatPage() {
             transform: rotate(360deg);
           }
         }
-
         .switch {
           position: relative;
           display: inline-block;
@@ -685,7 +760,6 @@ export default function ChatPage() {
         input:checked + .slider:before {
           transform: translateX(22px);
         }
-
         .chat-container::-webkit-scrollbar {
           width: 6px;
         }
@@ -701,7 +775,7 @@ export default function ChatPage() {
           background: rgba(122, 162, 247, 0.7);
         }
       `}</style>
-      <Toaster position="top-right" /> {/* Add this at the end */}
+      <Toaster position="top-right" />
     </SidebarProvider>
   );
 }

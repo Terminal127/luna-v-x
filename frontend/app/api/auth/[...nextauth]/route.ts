@@ -1,14 +1,59 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import GithubProvider from "next-auth/providers/github";
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from "fs";
-import path from "path";
+import { MongoClient } from "mongodb";
 
 // Check for missing critical variables
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
   throw new Error(
     "Missing Google OAuth environment variables (GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET)",
   );
+}
+
+// MongoDB connection
+const client = new MongoClient(
+  "mongodb+srv://terminalishere127:hello@cluster0.ezhgpwx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
+);
+
+async function getDatabase() {
+  await client.connect();
+  return client.db("db1");
+}
+
+// Function to save token to MongoDB
+async function saveTokenToMongo(tokenData: any) {
+  try {
+    const db = await getDatabase();
+    const collection = db.collection("secrets");
+
+    await collection.updateOne(
+      { email: tokenData.email },
+      { $set: tokenData },
+      { upsert: true },
+    );
+
+    console.log(`💾 Token saved to MongoDB for: ${tokenData.email}`);
+  } catch (error) {
+    console.error("❌ Error saving token to MongoDB:", error);
+  }
+}
+
+// Function to load token from MongoDB
+async function loadTokenFromMongo(email: string) {
+  try {
+    const db = await getDatabase();
+    const collection = db.collection("secrets");
+
+    const tokenData = await collection.findOne({ email });
+    if (tokenData) {
+      console.log("🔄 Restored refresh token from MongoDB");
+      return tokenData;
+    }
+    return null;
+  } catch (error) {
+    console.error("❌ Error loading token from MongoDB:", error);
+    return null;
+  }
 }
 
 // Function to refresh Google access token
@@ -96,31 +141,21 @@ const handler = NextAuth({
         };
       }
 
-      // If no refresh token in current token, try to load from saved file
+      // If no refresh token in current token, try to load from MongoDB
       if (!token.refreshToken && token.email) {
-        try {
-          const tokensDir = path.join(process.cwd(), "saved-tokens");
-          const filePath = path.join(tokensDir, "google_token.json");
-
-          if (existsSync(filePath)) {
-            const savedTokenData = JSON.parse(readFileSync(filePath, "utf8"));
-            if (
-              savedTokenData.refreshToken &&
-              savedTokenData.email === token.email
-            ) {
-              console.log("🔄 Restored refresh token from saved file");
-              token.refreshToken = savedTokenData.refreshToken;
-            }
-          }
-        } catch (error) {
-          console.error("❌ Error loading saved refresh token:", error);
+        const savedTokenData = await loadTokenFromMongo(token.email as string);
+        if (
+          savedTokenData?.refreshToken &&
+          savedTokenData.email === token.email
+        ) {
+          token.refreshToken = savedTokenData.refreshToken;
         }
       }
 
       // Check if token needs refresh (5 minutes before expiry)
       const timeUntilExpiry = (token.expiresAt as number) * 1000 - Date.now();
       const minutesUntilExpiry = Math.floor(timeUntilExpiry / 60000);
-      const refreshThreshold = 53 * 60 * 1000; // 5 minutes in milliseconds
+      const refreshThreshold = 5 * 60 * 1000; // 5 minutes in milliseconds
 
       console.log(`🔍 Token check: ${minutesUntilExpiry} minutes until expiry`);
       console.log(
@@ -129,7 +164,7 @@ const handler = NextAuth({
       console.log(`🔍 Debug - refreshToken exists: ${!!token.refreshToken}`);
       console.log(`🔍 Debug - provider: ${token.provider}`);
 
-      // Refresh token if it expires within 22 minutes
+      // Refresh token if it expires within 5 minutes
       if (
         timeUntilExpiry <= refreshThreshold &&
         token.refreshToken &&
@@ -178,46 +213,32 @@ const handler = NextAuth({
         session.user.image = token.picture as string;
       }
 
-      // Save updated token to file
+      // Save updated token to MongoDB (instead of file)
       if (
         session.user?.email &&
         token.accessToken &&
         token.provider === "google"
       ) {
-        try {
-          const tokensDir = path.join(process.cwd(), "saved-tokens");
-          mkdirSync(tokensDir, { recursive: true });
+        const tokenData = {
+          email: session.user.email,
+          name: session.user.name,
+          image: session.user.image,
+          accessToken: token.accessToken,
+          refreshToken: token.refreshToken,
+          expiresAt: token.expiresAt,
+          tokenType: "Bearer",
+          scope:
+            "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
+          savedAt: new Date().toISOString(),
+        };
 
-          const sanitizedEmail = session.user.email
-            .replace("@", "_at_")
-            .replace(/\./g, "_");
-          const filename = `google_token.json`;
-          const filePath = path.join(tokensDir, filename);
+        await saveTokenToMongo(tokenData);
 
-          const tokenData = {
-            email: session.user.email,
-            name: session.user.name,
-            image: session.user.image,
-            accessToken: token.accessToken,
-            refreshToken: token.refreshToken,
-            expiresAt: token.expiresAt,
-            tokenType: "Bearer",
-            scope:
-              "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
-            savedAt: new Date().toISOString(),
-          };
-
-          writeFileSync(filePath, JSON.stringify(tokenData, null, 2));
-
-          const expiryTime = new Date((token.expiresAt as number) * 1000);
-          console.log(`💾 Token saved for: ${session.user.email}`);
-          console.log(`📅 Token expires at: ${expiryTime.toLocaleString()}`);
-          console.log(
-            `🔑 Access token preview: ${String(token.accessToken).substring(0, 20)}...`,
-          );
-        } catch (error) {
-          console.error("❌ Error saving refreshed token:", error);
-        }
+        const expiryTime = new Date((token.expiresAt as number) * 1000);
+        console.log(`📅 Token expires at: ${expiryTime.toLocaleString()}`);
+        console.log(
+          `🔑 Access token preview: ${String(token.accessToken).substring(0, 20)}...`,
+        );
       }
 
       return session;

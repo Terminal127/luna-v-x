@@ -35,19 +35,24 @@ from pymongo.server_api import ServerApi
 
 warnings.filterwarnings("ignore", message="Convert_system_message_to_human will be deprecated!")
 
-# --- MONGODB SETUP ---
-DB_PASSWORD = "hello"
-MONGO_URI = f"mongodb+srv://terminalishere127:{DB_PASSWORD}@cluster0.ezhgpwx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-METADATA_DB_NAME = "db1"
-METADATA_COLLECTION_NAME = "user_sessionid"
-CHATS_DB_NAME = "db2"
-CHATS_COLLECTION_NAME = "sessionid_chats"
+load_dotenv()
+
 db_client = None
+
+MONGO_USERNAME = os.getenv("MONGO_USERNAME")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+MONGO_CLUSTER = os.getenv("MONGO_CLUSTER")
+MONGO_URI = os.getenv("MONGO_URI", f"mongodb+srv://{MONGO_USERNAME}:{DB_PASSWORD}@{MONGO_CLUSTER}/?retryWrites=true&w=majority&appName=Cluster0")
+METADATA_DB_NAME = os.getenv("METADATA_DB_NAME")
+CHATS_DB_NAME = os.getenv("CHATS_DB_NAME")
+METADATA_COLLECTION_NAME = os.getenv("METADATA_COLLECTION_NAME")
+CHATS_COLLECTION_NAME = os.getenv("CHATS_COLLECTION_NAME")
+SECRETS_COLLECTION_NAME = os.getenv("SECRETS_COLLECTION_NAME")
 
 # Global variables
 chatmap = {}
-session_id = "44b5de76-92ec-42d4-a27b-8a5e090781ae"
-user_email = "terminalishere127@gmail.com"
+session_id = os.getenv("DEFAULT_SESSION_ID")
+user_email = os.getenv("DEFAULT_USER_EMAIL")
 
 # --- ENHANCED PERSISTENCE PATHS (Legacy, for command history only) ---
 PROJECT_ROOT = Path("/home/anubhav/courses/luna-version-x/backend/langgraph")
@@ -63,9 +68,34 @@ REQUIRES_AUTHORIZATION = {
     "send_gmail_message": "This will send a gmail to the appopriate authority, Fo you want to proceed"
 }
 
+
 # State for LangGraph
 class AgentState(TypedDict):
     messages: Annotated[List[HumanMessage | AIMessage | ToolMessage], add_messages]
+
+def get_user_access_token(user_email):
+    """Get user's access token from MongoDB secrets collection"""
+    try:
+        # Use the same MongoDB connection as your main app
+        mongo_uri = os.getenv("MONGO_URI")
+        client = MongoClient(mongo_uri)
+        db = client[METADATA_DB_NAME]
+
+        collection = db[SECRETS_COLLECTION_NAME]
+
+        # Find the user's token document
+        token_doc = collection.find_one({"email": user_email})
+
+        if token_doc and "accessToken" in token_doc:
+            print(f"Found access token for {user_email}")
+            return token_doc["accessToken"]
+        else:
+            print(f"No access token found for {user_email}")
+            return None
+
+    except Exception as e:
+        print(f"Error getting access token from MongoDB: {e}")
+        return None
 
 def setup_readline():
     """Setup readline for command history and arrow key support"""
@@ -75,14 +105,14 @@ def setup_readline():
             readline.read_history_file(str(COMMAND_HISTORY_FILE))
         readline.set_history_length(1000)
     except Exception as e:
-        print(f"⚠️  Warning: Could not setup readline: {e}")
+        print(f"Warning: Could not setup readline: {e}")
 
 def save_readline_history():
     """Save command history to file"""
     try:
         readline.write_history_file(str(COMMAND_HISTORY_FILE))
     except Exception as e:
-        print(f"⚠️  Warning: Could not save command history: {e}")
+        print(f"Warning: Could not save command history: {e}")
 
 # ==============================================================================
 #  TOOLS DEFINITION (No changes needed in the tools themselves)
@@ -330,9 +360,9 @@ def read_gmail_messages(top=5):
             body = decode_base64_url(payload['body']['data'])
         return body
 
-    with open("/home/anubhav/courses/luna-version-x/frontend/saved-tokens/google_token.json", "r") as f:
-        data = json.load(f)
-    access_token = data["accessToken"]
+    access_token = get_user_access_token(user_email)
+    if not access_token:
+        return f"❌ No access token found for {user_email}. Please login first."
 
     list_url, params = "https://gmail.googleapis.com/gmail/v1/users/me/messages", {"maxResults": top, "labelIds": "INBOX"}
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -371,9 +401,9 @@ def send_gmail_message(to: str, title: str, body: str):
     Send an email using Gmail API with a saved OAuth token.
     """
     try:
-        with open("/home/anubhav/courses/luna-version-x/frontend/saved-tokens/google_token.json", "r") as f:
-            data = json.load(f)
-        access_token = data["accessToken"]
+        access_token = get_user_access_token(user_email)
+        if not access_token:
+            return f"❌ No access token found for {user_email}. Please login first."
 
         message = MIMEText(body)
         message["to"], message["subject"] = to, title

@@ -11,6 +11,7 @@ RUN npm ci
 
 # Copy the rest of the application code
 COPY . .
+COPY .env.local ./.env.local
 
 # Build the Next.js application
 # Next.js build typically creates a .next folder
@@ -30,6 +31,7 @@ ENV NODE_ENV production
 # package.json and node_modules are needed for next start
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/.env.local ./.env.local
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 
