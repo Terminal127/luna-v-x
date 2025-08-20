@@ -114,6 +114,7 @@ export default function ChatPage() {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
   const [hasAnimatedIn, setHasAnimatedIn] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false); // Add this state
 
   const flipWords = ["helpful", "creative", "intelligent", "powerful"];
 
@@ -199,6 +200,9 @@ export default function ChatPage() {
 
   // --- MAIN INITIALIZATION HOOK ---
   useEffect(() => {
+    // Prevent re-initialization if already initialized
+    if (isInitialized) return;
+
     if (status !== "authenticated" || !session?.user?.email) {
       if (status === "unauthenticated") router.push("/login");
       return;
@@ -233,6 +237,7 @@ export default function ChatPage() {
             await createNewSession(email);
           }
         }
+        setIsInitialized(true); // Mark as initialized
       } catch (error) {
         console.error("Initialization failed:", error);
         setApiStatus("error");
@@ -245,7 +250,14 @@ export default function ChatPage() {
     };
 
     initUserAndSessions();
-  }, [status, session, router, fetchSessionHistory, createNewSession]);
+  }, [
+    status,
+    session,
+    router,
+    fetchSessionHistory,
+    createNewSession,
+    isInitialized,
+  ]);
 
   // --- HANDLERS TO PASS TO SIDEBAR ---
   const handleCreateNewSession = async () => {
@@ -269,18 +281,22 @@ export default function ChatPage() {
     setIsPageLoading(false);
   };
 
-  // --- EXISTING HOOKS AND FUNCTIONS ---
+  // --- MODIFIED SESSION REFRESH HOOK ---
   useEffect(() => {
+    // Only set up session refresh if already initialized
+    if (!isInitialized) return;
+
     const interval = setInterval(
       async () => {
         if (status === "authenticated") {
+          // Silently refresh session without triggering re-initialization
           await getSession();
         }
       },
       5 * 60 * 1000,
     );
     return () => clearInterval(interval);
-  }, [status]);
+  }, [status, isInitialized]); // Add isInitialized dependency
 
   const smoothScrollToBottom = useCallback(() => {
     if (!chatContainerRef.current) return;

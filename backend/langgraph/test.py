@@ -4,7 +4,8 @@ import uuid
 import json
 import requests
 import subprocess
-
+import asyncio
+import websockets
 import time
 from urllib.parse import quote, unquote
 import readline
@@ -329,9 +330,135 @@ def youtube_search(
 
 
 @tool
-def chrome_tab_controller(command: str, url: Optional[str] = None, tab_id: Optional[int] = None) -> str:
-    """Control Google Chrome tabs by connecting to a WebSocket server."""
-    return f"Chrome tab controller executed: {command} (requires WebSocket server)"
+def chrome_tab_controller(
+    command: str,
+    url: Optional[str] = None,
+    tab_id: Optional[int] = None
+) -> str:
+    """
+    Control Google Chrome tabs by connecting to a WebSocket server.
+
+    Args:
+        command (str): The action to perform. One of:
+            - 'list_tabs': List all open tabs.
+            - 'open_tab': Open a new tab. Requires 'url'.
+            - 'close_tab': Close a specific tab. Requires 'tab_id'.
+            - 'switch_tab': Switch to a specific tab. Requires 'tab_id'.
+            - 'reload_tab': Reload a specific tab. Requires 'tab_id'.
+            - 'navigate_tab': Navigate a tab to a new URL. Requires 'tab_id' and 'url'.
+        url (Optional[str]): The URL to use for 'open_tab' or 'navigate_tab'.
+        tab_id (Optional[int]): The ID of the tab for 'close_tab', 'switch_tab', 'reload_tab', or 'navigate_tab'.
+
+    Returns:
+        str: A success message, a list of tabs, or an error message as a JSON string.
+
+    Notes:
+        - This tool requires a running WebSocket server at 'ws://localhost:8765/ws'.
+        - If the server is not running, it will return a connection error.
+    """
+    class ChromeTabControllerClient:
+        def __init__(self, server_url='ws://localhost:8765/ws'):
+            self.server_url = server_url
+            self.websocket = None
+            self.pending_requests = {}
+
+        async def connect(self):
+            self.websocket = await websockets.connect(self.server_url)
+            await self.websocket.send(json.dumps({'type': 'role', 'role': 'client'}))
+            asyncio.create_task(self._message_handler())
+
+        async def _message_handler(self):
+            try:
+                async for message in self.websocket:
+                    data = json.loads(message)
+                    request_id = data.get('id')
+                    if request_id in self.pending_requests:
+                        future = self.pending_requests.pop(request_id)
+                        future.set_result(data)
+            except websockets.exceptions.ConnectionClosed:
+                pass # Connection closed as expected
+
+        async def _send_command(self, cmd: str, payload: Dict = None) -> Dict[str, Any]:
+            if not self.websocket:
+                raise ConnectionError("Not connected to server")
+            request_id = str(uuid.uuid4())
+            future = asyncio.Future()
+            self.pending_requests[request_id] = future
+            message = {'type': 'command', 'id': request_id, 'command': cmd, 'payload': payload or {}}
+            await self.websocket.send(json.dumps(message))
+            try:
+                return await asyncio.wait_for(future, timeout=10.0)
+            except asyncio.TimeoutError:
+                self.pending_requests.pop(request_id, None)
+                return {'error': 'Request timeout'}
+
+        async def list_tabs(self):
+            return await self._send_command('list_tabs')
+
+        async def open_tab(self, target_url: str, active: bool = True):
+            return await self._send_command('open_tab', {'url': target_url, 'active': active})
+
+        async def close_tab(self, target_tab_id: int):
+            return await self._send_command('close_tab', {'tabId': target_tab_id})
+
+        async def switch_tab(self, target_tab_id: int):
+            return await self._send_command('switch_tab', {'tabId': target_tab_id})
+
+        async def reload_tab(self, target_tab_id: int):
+            return await self._send_command('reload_tab', {'tabId': target_tab_id})
+
+        async def navigate_tab(self, target_tab_id: int, target_url: str):
+            return await self._send_command('navigate_tab', {'tabId': target_tab_id, 'url': target_url})
+
+        async def disconnect(self):
+            if self.websocket:
+                await self.websocket.close()
+
+    # FIX: Pass arguments explicitly to the async function
+    async def run_command_async(cmd, target_url, target_tab_id):
+        controller = ChromeTabControllerClient()
+        try:
+            await controller.connect()
+            command_lower = cmd.lower()
+            response = None
+
+            if command_lower == 'list_tabs':
+                response = await controller.list_tabs()
+            elif command_lower == 'open_tab':
+                if not target_url: return {"error": "URL is required for open_tab"}
+                if not target_url.startswith(('http://', 'https://')):
+                    target_url = 'https://' + target_url
+                response = await controller.open_tab(target_url)
+            elif command_lower == 'close_tab':
+                if target_tab_id is None: return {"error": "tab_id is required for close_tab"}
+                response = await controller.close_tab(target_tab_id)
+            elif command_lower == 'switch_tab':
+                if target_tab_id is None: return {"error": "tab_id is required for switch_tab"}
+                response = await controller.switch_tab(target_tab_id)
+            elif command_lower == 'reload_tab':
+                if target_tab_id is None: return {"error": "tab_id is required for reload_tab"}
+                response = await controller.reload_tab(target_tab_id)
+            elif command_lower == 'navigate_tab':
+                if target_tab_id is None or not target_url: return {"error": "tab_id and url are required for navigate_tab"}
+                if not target_url.startswith(('http://', 'https://')):
+                    target_url = 'https://' + target_url
+                response = await controller.navigate_tab(target_tab_id, target_url)
+            else:
+                valid_cmds = "list_tabs, open_tab, close_tab, switch_tab, reload_tab, navigate_tab"
+                return json.dumps({"error": f"Unknown command '{cmd}'. Valid commands are: {valid_cmds}."}, indent=2)
+
+            return json.dumps(response, indent=2)
+        finally:
+            await controller.disconnect()
+
+    try:
+        # FIX: Pass the arguments from the tool's scope into the async runner
+        return asyncio.run(run_command_async(command, url, tab_id))
+    except ConnectionRefusedError:
+        return json.dumps({"error": "Connection refused. Is the Chrome Tab Controller server running?"}, indent=2)
+    except Exception as e:
+        return json.dumps({"error": f"An unexpected error occurred: {e}"}, indent=2)
+
 
 @tool
 def read_gmail_messages(top=5):
@@ -920,7 +1047,7 @@ def list_calendar_list() -> str:
 #  AGENT AND GRAPH SETUP (No changes needed here)
 # ==============================================================================
 # Separate tools into safe and sensitive categories
-safe_tools = [get_current_time, calculate, get_chat_history_summary, task_planner, youtube_search, list_calendar_events, get_meet_space, list_calendar_list]
+safe_tools = [get_current_time, calculate, get_chat_history_summary, task_planner, youtube_search, list_calendar_events, get_meet_space, list_calendar_list,chrome_tab_controller]
 sensitive_tools = [read_gmail_messages, send_gmail_message,create_calendar_event,update_calendar_event, delete_calendar_event,create_meet_space, end_meet_space]
 sensitive_tool_names = {t.name for t in sensitive_tools}
 all_tools = safe_tools + sensitive_tools

@@ -14,12 +14,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Luna-V-X",
+  title: "LunaVX",
   description: "Luna Version X - Agentic AI Assistant",
   icons: {
     icon: "/favicon.ico",
-    // shortcut: "/favicon.ico",
-    // apple: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
   },
 };
 
@@ -33,7 +33,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* 2. WRAP YOUR CHILDREN WITH THE PROVIDERS */}
         <NextAuthProvider>{children}</NextAuthProvider>
       </body>
     </html>
