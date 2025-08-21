@@ -1,4 +1,5 @@
 "use client";
+import { Connectors } from "@/components/Connectors";
 
 import {
   Home,
@@ -43,7 +44,9 @@ import { signOut } from "next-auth/react";
 import SettingsModal from "@/components/SettingsModal";
 
 // --- INTERFACES & PROPS ---
+
 const DEFAULT_TOOL_NAME = "default_tool";
+const TOOL_API_URL = process.env.NEXT_PUBLIC_TOOL_API_BASE_URL;
 
 // Represents a single session object received from the backend
 interface UserSession {
@@ -71,11 +74,13 @@ export function ChatSidebar({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [seenTools, setSeenTools] = useState<string[]>([]);
+  const [isConnectorsOpen, setIsConnectorsOpen] = useState(false);
 
-  // --- Tool Action Logic (remains unchanged) ---
+  // --- Tool Action Logic ---
   const fetchApiStatus = useCallback(async () => {
+    if (!TOOL_API_URL) return; // Don't fetch if the URL isn't set
     try {
-      const response = await fetch("http://localhost:9000/");
+      const response = await fetch(TOOL_API_URL);
       if (!response.ok) {
         setActiveTool(null);
         return;
@@ -87,7 +92,7 @@ export function ChatSidebar({
         setActiveTool(null);
       }
     } catch (error) {
-      console.error("Failed to fetch from API on port 9000:", error);
+      console.error(`Failed to fetch from API on ${TOOL_API_URL}:`, error);
       setActiveTool(null);
     }
   }, []);
@@ -99,13 +104,14 @@ export function ChatSidebar({
   }, [fetchApiStatus]);
 
   const updateAndResetApi = async (status: "A" | "D") => {
+    if (!TOOL_API_URL) return false; // Don't fetch if the URL isn't set
     try {
       const requestBody = {
         authorization: status,
         tool_name: "default_tool",
         tool_args: {},
       };
-      await fetch("http://localhost:9000/", {
+      await fetch(TOOL_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
@@ -126,7 +132,6 @@ export function ChatSidebar({
   };
 
   // --- Sidebar Items ---
-  // The "New Chat" button's onClick is now wired to the prop function
   const items = [
     { title: "Home", url: "/", icon: Home, onClick: null },
     {
@@ -181,7 +186,7 @@ export function ChatSidebar({
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* --- Action Required Group (Unchanged) --- */}
+          {/* --- Action Required Group --- */}
           {isToolNotificationVisible && (
             <SidebarGroup>
               <SidebarGroupLabel>Action Required</SidebarGroupLabel>
@@ -233,7 +238,6 @@ export function ChatSidebar({
                         <SidebarMenuItem key={sess.session_id}>
                           <SidebarMenuButton
                             onClick={() => onSelectSession(sess.session_id)}
-                            // Highlight the button if it's the active session
                             className={
                               sess.session_id === activeSessionId
                                 ? "bg-gray-700/50 text-white font-semibold"
@@ -241,7 +245,6 @@ export function ChatSidebar({
                             }
                           >
                             <History size={16} className="flex-shrink-0" />
-                            {/* Truncate long text and format the date */}
                             <span className="truncate flex-1 text-left">
                               Chat from{" "}
                               {new Date(sess.last_updated).toLocaleString(
@@ -271,7 +274,7 @@ export function ChatSidebar({
           </Collapsible>
         </SidebarContent>
 
-        {/* --- User Menu in Footer (Unchanged) --- */}
+        {/* --- User Menu in Footer --- */}
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -305,6 +308,11 @@ export function ChatSidebar({
                   <DropdownMenuItem>
                     <span>Billing</span>
                   </DropdownMenuItem>
+
+                  <DropdownMenuItem onClick={() => setIsConnectorsOpen(true)}>
+                    <span>Connectors</span>
+                  </DropdownMenuItem>
+
                   <DropdownMenuItem
                     onClick={() => signOut({ callbackUrl: "/" })}
                   >
@@ -320,6 +328,10 @@ export function ChatSidebar({
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+      />
+      <Connectors
+        isOpen={isConnectorsOpen}
+        onClose={() => setIsConnectorsOpen(false)}
       />
     </>
   );

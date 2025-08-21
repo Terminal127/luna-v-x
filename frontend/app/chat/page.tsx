@@ -23,7 +23,9 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ChatSidebar } from "../../components/chat-sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import LunaAvatar from "/luna-avatar.jpg";
+
+// --- CONSTANTS ---
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export function LoaderThreeDemo() {
   return <LoaderThree />;
@@ -144,9 +146,13 @@ export default function ChatPage() {
   // --- SESSION MANAGEMENT FUNCTIONS ---
   const fetchSessionHistory = useCallback(
     async (sessionId: string, email: string) => {
+      if (!API_BASE_URL) {
+        toast.error("API URL is not configured.");
+        return;
+      }
       try {
         const response = await fetch(
-          `http://localhost:8000/api/session/${sessionId}/history?email=${email}`,
+          `${API_BASE_URL}/api/session/${sessionId}/history?email=${email}`,
         );
         if (!response.ok) throw new Error("Failed to fetch session history");
         const data = await response.json();
@@ -177,8 +183,12 @@ export default function ChatPage() {
 
   const createNewSession = useCallback(
     async (email: string) => {
+      if (!API_BASE_URL) {
+        toast.error("API URL is not configured.");
+        return null;
+      }
       try {
-        const response = await fetch("http://localhost:8000/api/session", {
+        const response = await fetch(`${API_BASE_URL}/api/session`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email }),
@@ -200,8 +210,19 @@ export default function ChatPage() {
 
   // --- MAIN INITIALIZATION HOOK ---
   useEffect(() => {
-    // Prevent re-initialization if already initialized
     if (isInitialized) return;
+
+    if (!API_BASE_URL) {
+      console.error(
+        "NEXT_PUBLIC_API_BASE_URL is not defined in your .env.local file.",
+      );
+      setApiStatus("error");
+      toast.error(
+        "Application is not configured correctly. Please contact support.",
+      );
+      setIsPageLoading(false);
+      return;
+    }
 
     if (status !== "authenticated" || !session?.user?.email) {
       if (status === "unauthenticated") router.push("/login");
@@ -213,10 +234,10 @@ export default function ChatPage() {
       setIsPageLoading(true);
       setApiStatus("connecting");
       try {
-        await fetch("http://localhost:8000/health");
+        await fetch(`${API_BASE_URL}/health`);
         setApiStatus("connected");
         const sessionsResponse = await fetch(
-          `http://localhost:8000/api/user/${email}/sessions`,
+          `${API_BASE_URL}/api/user/${email}/sessions`,
         );
         if (sessionsResponse.status === 404) {
           await createNewSession(email);
@@ -261,11 +282,11 @@ export default function ChatPage() {
 
   // --- HANDLERS TO PASS TO SIDEBAR ---
   const handleCreateNewSession = async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email || !API_BASE_URL) return;
     const newSessionId = await createNewSession(session.user.email);
     if (newSessionId) {
       const sessionsResponse = await fetch(
-        `http://localhost:8000/api/user/${session.user.email}/sessions`,
+        `${API_BASE_URL}/api/user/${session.user.email}/sessions`,
       );
       if (sessionsResponse.ok) {
         const sessionsData = await sessionsResponse.json();
@@ -283,20 +304,18 @@ export default function ChatPage() {
 
   // --- MODIFIED SESSION REFRESH HOOK ---
   useEffect(() => {
-    // Only set up session refresh if already initialized
     if (!isInitialized) return;
 
     const interval = setInterval(
       async () => {
         if (status === "authenticated") {
-          // Silently refresh session without triggering re-initialization
           await getSession();
         }
       },
       5 * 60 * 1000,
     );
     return () => clearInterval(interval);
-  }, [status, isInitialized]); // Add isInitialized dependency
+  }, [status, isInitialized]);
 
   const smoothScrollToBottom = useCallback(() => {
     if (!chatContainerRef.current) return;
@@ -313,11 +332,13 @@ export default function ChatPage() {
   useEffect(() => {
     smoothScrollToBottom();
   }, [messages, typingText, smoothScrollToBottom]);
+
   useEffect(() => {
     if (currentGeneratingId !== null) {
       smoothScrollToBottom();
     }
   }, [typingText, currentGeneratingId, smoothScrollToBottom]);
+
   useEffect(() => {
     const chatContainer = chatContainerRef.current;
     if (!chatContainer) return;
@@ -383,8 +404,14 @@ export default function ChatPage() {
     userMessage: string,
     currentSessionId: string,
   ) => {
+    if (!API_BASE_URL) {
+      return {
+        response:
+          "I'm having technical difficulties. (Error: API URL not configured)",
+      };
+    }
     try {
-      const response = await fetch("http://localhost:8000/api/chat", {
+      const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -651,6 +678,7 @@ export default function ChatPage() {
                       onChange={handleChange}
                       onSubmit={onSubmit}
                       value={currentMessage}
+                      isLoading={isLoading}
                     />
                   </div>
                   {hasAnimatedIn && (
@@ -789,6 +817,41 @@ export default function ChatPage() {
         }
         .chat-container::-webkit-scrollbar-thumb:hover {
           background: rgba(122, 162, 247, 0.7);
+        }
+        .glowing-border {
+          position: relative;
+          border-radius: 9999px; /* or a specific value for your rounded corners */
+          -webkit-animation: glowing 2s infinite;
+          -moz-animation: glowing 2s infinite;
+          -o-animation: glowing 2s infinite;
+          animation: glowing 2s infinite;
+        }
+        @keyframes glowing {
+          0% {
+            box-shadow: 0 0 -10px #7aa2f7;
+          }
+          40% {
+            box-shadow: 0 0 20px #7aa2f7;
+          }
+          60% {
+            box-shadow: 0 0 20px #7aa2f7;
+          }
+          100% {
+            box-shadow: 0 0 -10px #7aa2f7;
+          }
+        }
+        .loading-spinner-button {
+          width: 1rem;
+          height: 1rem;
+          border: 2px solid #c0caf5;
+          border-top-color: transparent;
+          border-radius: 50%;
+          animation: spin-button 0.8s linear infinite;
+        }
+        @keyframes spin-button {
+          to {
+            transform: rotate(360deg);
+          }
         }
       `}</style>
       <Toaster position="top-right" />

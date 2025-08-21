@@ -8,10 +8,14 @@ export function PlaceholdersAndVanishInput({
   placeholders,
   onChange,
   onSubmit,
+  isLoading,
+  value: propValue,
 }: {
   placeholders: string[];
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+  isLoading?: boolean;
+  value: string;
 }) {
   const [currentPlaceholder, setCurrentPlaceholder] = useState(0);
 
@@ -46,8 +50,12 @@ export function PlaceholdersAndVanishInput({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const newDataRef = useRef<any[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(propValue);
   const [animating, setAnimating] = useState(false);
+
+  useEffect(() => {
+    setValue(propValue);
+  }, [propValue]);
 
   const draw = useCallback(() => {
     if (!inputRef.current) return;
@@ -177,103 +185,111 @@ export function PlaceholdersAndVanishInput({
   };
 
   return (
-    <form
-      className={cn(
-        "w-full relative max-w-xl mx-auto bg-[#1a1b26] h-12 rounded-full overflow-hidden shadow-lg transition duration-200 border border-[#414868]",
-        value && "bg-[#1f2335]",
-      )}
-      onSubmit={handleSubmit}
-    >
-      <canvas
+    <div className={cn(isLoading && "glowing-border")}>
+      <form
         className={cn(
-          "absolute pointer-events-none text-base transform scale-50 top-[20%] left-2 sm:left-8 origin-top-left",
-          !animating ? "opacity-0" : "opacity-100",
+          "w-full relative max-w-xl mx-auto bg-[#1a1b26] h-12 rounded-full overflow-hidden shadow-lg transition duration-200 border border-[#414868]",
+          value && "bg-[#1f2335]",
         )}
-        ref={canvasRef}
-      />
-      <input
-        onChange={(e) => {
-          if (!animating) {
-            setValue(e.target.value);
-            onChange && onChange(e);
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        ref={inputRef}
-        value={value}
-        spellCheck={false}
-        type="text"
-        className={cn(
-          "w-full relative text-sm sm:text-base z-50 border-none text-[#c0caf5] placeholder-[#565f89] bg-transparent h-full rounded-full focus:outline-none focus:ring-0 pl-4 sm:pl-10 pr-20",
-          animating && "text-transparent",
-        )}
-      />
-
-      <button
-        disabled={!value}
-        type="submit"
-        className="absolute right-2 top-1/2 z-50 -translate-y-1/2 h-8 w-8 rounded-full disabled:bg-[#1f2335] bg-[#7aa2f7] transition duration-150 flex items-center justify-center"
+        onSubmit={handleSubmit}
       >
-        <motion.svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#c0caf5"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-4 w-4"
-        >
-          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-          <motion.path
-            d="M5 12l14 0"
-            initial={{
-              strokeDasharray: "50%",
-              strokeDashoffset: "50%",
-            }}
-            animate={{
-              strokeDashoffset: value ? 0 : "50%",
-            }}
-            transition={{
-              duration: 0.15,
-              ease: "linear",
-            }}
-          />
-          <path d="M13 18l6 -6" />
-          <path d="M13 6l6 6" />
-        </motion.svg>
-      </button>
-
-      <div className="absolute inset-0 flex items-center rounded-full pointer-events-none">
-        <AnimatePresence mode="wait">
-          {!value && (
-            <motion.p
-              initial={{
-                y: 5,
-                opacity: 0,
-              }}
-              key={`current-placeholder-${currentPlaceholder}`}
-              animate={{
-                y: 0,
-                opacity: 1,
-              }}
-              exit={{
-                y: -15,
-                opacity: 0,
-              }}
-              transition={{
-                duration: 0.15,
-                ease: "linear",
-              }}
-              className="text-[#565f89] text-sm sm:text-base font-normal pl-4 sm:pl-12 text-left w-[calc(100%-2rem)] truncate"
-            >
-              {placeholders[currentPlaceholder]}
-            </motion.p>
+        <canvas
+          className={cn(
+            "absolute pointer-events-none text-base transform scale-50 top-[20%] left-2 sm:left-8 origin-top-left",
+            !animating ? "opacity-0" : "opacity-100",
           )}
-        </AnimatePresence>
-      </div>
-    </form>
+          ref={canvasRef}
+        />
+        <input
+          onChange={(e) => {
+            if (!animating) {
+              setValue(e.target.value);
+              onChange && onChange(e);
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          ref={inputRef}
+          value={value}
+          disabled={isLoading}
+          spellCheck={false}
+          type="text"
+          className={cn(
+            "w-full relative text-sm sm:text-base z-50 border-none text-[#c0caf5] placeholder-[#565f89] bg-transparent h-full rounded-full focus:outline-none focus:ring-0 pl-4 sm:pl-10 pr-20",
+            animating && "text-transparent",
+            isLoading && "cursor-not-allowed",
+          )}
+        />
+
+        <button
+          disabled={!value || isLoading}
+          type="submit"
+          className="absolute right-2 top-1/2 z-50 -translate-y-1/2 h-8 w-8 rounded-full disabled:bg-[#1f2335] bg-[#7aa2f7] transition duration-150 flex items-center justify-center disabled:cursor-not-allowed"
+        >
+          {isLoading ? (
+            <div className="loading-spinner-button"></div>
+          ) : (
+            <motion.svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#c0caf5"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+            >
+              <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+              <motion.path
+                d="M5 12l14 0"
+                initial={{
+                  strokeDasharray: "50%",
+                  strokeDashoffset: "50%",
+                }}
+                animate={{
+                  strokeDashoffset: value ? 0 : "50%",
+                }}
+                transition={{
+                  duration: 0.15,
+                  ease: "linear",
+                }}
+              />
+              <path d="M13 18l6 -6" />
+              <path d="M13 6l6 6" />
+            </motion.svg>
+          )}
+        </button>
+
+        <div className="absolute inset-0 flex items-center rounded-full pointer-events-none">
+          <AnimatePresence mode="wait">
+            {!value && (
+              <motion.p
+                initial={{
+                  y: 5,
+                  opacity: 0,
+                }}
+                key={`current-placeholder-${currentPlaceholder}`}
+                animate={{
+                  y: 0,
+                  opacity: 1,
+                }}
+                exit={{
+                  y: -15,
+                  opacity: 0,
+                }}
+                transition={{
+                  duration: 0.15,
+                  ease: "linear",
+                }}
+                className="text-[#565f89] text-sm sm:text-base font-normal pl-4 sm:pl-12 text-left w-[calc(100%-2rem)] truncate"
+              >
+                {placeholders[currentPlaceholder]}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </div>
+      </form>
+    </div>
   );
 }

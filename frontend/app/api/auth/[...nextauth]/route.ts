@@ -3,49 +3,45 @@ import GoogleProvider from "next-auth/providers/google";
 import GithubProvider from "next-auth/providers/github";
 import { MongoClient } from "mongodb";
 
-if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+if (
+  !process.env.GOOGLE_CLIENT_ID ||
+  !process.env.GOOGLE_CLIENT_SECRET ||
+  !process.env.MONGODB_URI
+) {
   throw new Error(
-    "Missing Google OAuth environment variables (GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET)",
+    "Missing Google OAuth environment variables (GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET or MONGODB_URI)",
   );
 }
 
-// MongoDB connection
-const client = new MongoClient(
-  "mongodb+srv://terminalishere127:hello@cluster0.ezhgpwx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
-);
+const client = new MongoClient(process.env.MONGODB_URI);
 
 async function getDatabase() {
   await client.connect();
   return client.db("db1");
 }
 
-// Function to save token to MongoDB
 async function saveTokenToMongo(tokenData: any) {
   try {
     const db = await getDatabase();
     const collection = db.collection("secrets");
-
     await collection.updateOne(
       { email: tokenData.email },
       { $set: tokenData },
       { upsert: true },
     );
-
     console.log(`💾 Token saved to MongoDB for: ${tokenData.email}`);
   } catch (error) {
     console.error("❌ Error saving token to MongoDB:", error);
   }
 }
 
-// Function to load token from MongoDB
 async function loadTokenFromMongo(email: string) {
   try {
     const db = await getDatabase();
     const collection = db.collection("secrets");
-
     const tokenData = await collection.findOne({ email });
     if (tokenData) {
-      console.log("🔄 Restored refresh token from MongoDB");
+      console.log("🔄 Restored token data from MongoDB");
       return tokenData;
     }
     return null;
@@ -55,15 +51,12 @@ async function loadTokenFromMongo(email: string) {
   }
 }
 
-// Function to refresh Google access token
 async function refreshGoogleToken(refreshToken: string): Promise<any> {
   console.log("🔄 Starting token refresh...");
   try {
     const response = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
@@ -71,23 +64,18 @@ async function refreshGoogleToken(refreshToken: string): Promise<any> {
         grant_type: "refresh_token",
       }),
     });
-
     const tokens = await response.json();
-    console.log("🔄 Token refresh response status:", response.status);
-
     if (!response.ok) {
       console.error("❌ Token refresh failed:", tokens);
       throw new Error(
         `Token refresh failed: ${tokens.error_description || tokens.error}`,
       );
     }
-
     console.log("✅ Token refresh successful!");
-
     return {
       accessToken: tokens.access_token,
       expiresAt: Math.floor(Date.now() / 1000) + tokens.expires_in,
-      refreshToken: refreshToken, // Keep the same refresh token
+      refreshToken: refreshToken,
     };
   } catch (error) {
     console.error("❌ Error refreshing token:", error);
@@ -104,54 +92,10 @@ const handler = NextAuth({
         params: {
           prompt: "consent",
           access_type: "offline",
-          scope: [
-            // Basic profile scopes
-            "openid",
-            "email",
-            "profile",
-
-            // Gmail scopes (existing)
-            "https://www.googleapis.com/auth/gmail.readonly",
-            "https://www.googleapis.com/auth/gmail.send",
-            "https://www.googleapis.com/auth/gmail.modify",
-            "https://www.googleapis.com/auth/gmail.compose",
-
-            // Google Drive scopes - Full access
-            "https://www.googleapis.com/auth/drive",
-            "https://www.googleapis.com/auth/drive.file",
-            "https://www.googleapis.com/auth/drive.metadata",
-            "https://www.googleapis.com/auth/drive.scripts",
-            "https://www.googleapis.com/auth/drive.addons.metadata.readonly",
-
-            // Google Calendar scopes - Full access
-            "https://www.googleapis.com/auth/calendar",
-            "https://www.googleapis.com/auth/calendar.events",
-            "https://www.googleapis.com/auth/calendar.readonly",
-            "https://www.googleapis.com/auth/calendar.settings.readonly",
-            "https://www.googleapis.com/auth/calendar.addons.execute",
-
-            // Google Meet scopes
-            "https://www.googleapis.com/auth/meetings.space.created",
-            "https://www.googleapis.com/auth/meetings.space.readonly",
-
-            // Additional Google Workspace scopes for comprehensive access
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/documents",
-            "https://www.googleapis.com/auth/presentations",
-            "https://www.googleapis.com/auth/forms",
-
-            // Google Photos (if needed)
-            "https://www.googleapis.com/auth/photoslibrary",
-            "https://www.googleapis.com/auth/photoslibrary.sharing",
-
-            // YouTube (if needed for integration)
-            "https://www.googleapis.com/auth/youtube",
-            "https://www.googleapis.com/auth/youtube.upload",
-          ].join(" "),
+          scope: "openid email profile",
         },
       },
     }),
-
     GithubProvider({
       clientId: process.env.GITHUB_CLIENT_ID!,
       clientSecret: process.env.GITHUB_CLIENT_SECRET!,
@@ -169,93 +113,60 @@ const handler = NextAuth({
   },
   callbacks: {
     async jwt({ token, account, user }) {
-      // Initial sign in
-      if (account && user) {
+      if (account) {
+        const currentScopes = token.scope
+          ? (token.scope as string).split(" ")
+          : [];
+        const newScopes = account.scope ? account.scope.split(" ") : [];
+        const allScopes = [...new Set([...currentScopes, ...newScopes])].join(
+          " ",
+        );
+
         return {
           ...token,
           accessToken: account.access_token,
-          refreshToken: account.refresh_token,
+          refreshToken: account.refresh_token ?? token.refreshToken,
           expiresAt: account.expires_at,
           provider: account.provider,
-          picture: user.image,
-          name: user.name,
-          email: user.email,
+          scope: allScopes,
+          ...(user && {
+            picture: user.image,
+            name: user.name,
+            email: user.email,
+          }),
         };
       }
 
-      // If no refresh token in current token, try to load from MongoDB
-      if (!token.refreshToken && token.email) {
-        const savedTokenData = await loadTokenFromMongo(token.email as string);
-        if (
-          savedTokenData?.refreshToken &&
-          savedTokenData.email === token.email
-        ) {
-          token.refreshToken = savedTokenData.refreshToken;
+      if (Date.now() >= (token.expiresAt as number) * 1000) {
+        console.log("Token has expired, attempting to refresh...");
+        if (token.refreshToken && token.provider === "google") {
+          try {
+            const refreshedTokens = await refreshGoogleToken(
+              token.refreshToken as string,
+            );
+            return {
+              ...token,
+              accessToken: refreshedTokens.accessToken,
+              expiresAt: refreshedTokens.expiresAt,
+              refreshToken: refreshedTokens.refreshToken,
+            };
+          } catch (error) {
+            console.error("Error refreshing access token", error);
+            return { ...token, error: "RefreshAccessTokenError" };
+          }
         }
-      }
-
-      // Check if token needs refresh (5 minutes before expiry)
-      const timeUntilExpiry = (token.expiresAt as number) * 1000 - Date.now();
-      const minutesUntilExpiry = Math.floor(timeUntilExpiry / 60000);
-      const refreshThreshold = 5 * 60 * 1000; // 5 minutes in milliseconds
-
-      console.log(`🔍 Token check: ${minutesUntilExpiry} minutes until expiry`);
-      console.log(
-        `🔍 Debug - timeUntilExpiry: ${timeUntilExpiry}ms, threshold: ${refreshThreshold}ms`,
-      );
-      console.log(`🔍 Debug - refreshToken exists: ${!!token.refreshToken}`);
-      console.log(`🔍 Debug - provider: ${token.provider}`);
-
-      // Refresh token if it expires within 5 minutes
-      if (
-        timeUntilExpiry <= refreshThreshold &&
-        token.refreshToken &&
-        token.provider === "google"
-      ) {
-        console.log(`🔄 Token expires soon for google! Refreshing...`);
-        try {
-          const refreshedTokens = await refreshGoogleToken(
-            token.refreshToken as string,
-          );
-
-          const newExpiryTime = new Date(refreshedTokens.expiresAt * 1000);
-          console.log(
-            `🎉 Token refreshed successfully! New expiry: ${newExpiryTime.toLocaleString()}`,
-          );
-
-          return {
-            ...token,
-            accessToken: refreshedTokens.accessToken,
-            expiresAt: refreshedTokens.expiresAt,
-            refreshToken: refreshedTokens.refreshToken,
-            picture: token.picture,
-            name: token.name,
-            email: token.email,
-          };
-        } catch (error) {
-          console.error("❌ Error refreshing access token", error);
-          return { ...token, error: "RefreshAccessTokenError" };
-        }
-      }
-
-      // Token is still valid
-      if (timeUntilExpiry > refreshThreshold) {
-        console.log(`✅ Token still valid for ${minutesUntilExpiry} minutes`);
       }
 
       return token;
     },
     async session({ session, token }) {
-      // Send properties to the client
       (session as any).accessToken = token.accessToken;
       (session as any).error = token.error;
-
-      // Ensure user profile data is included
+      (session as any).scope = token.scope;
       if (session.user && token.picture) {
         session.user.image = token.picture as string;
       }
 
-      // Save updated token to MongoDB (instead of file)
       if (
         session.user?.email &&
         token.accessToken &&
@@ -269,27 +180,16 @@ const handler = NextAuth({
           refreshToken: token.refreshToken,
           expiresAt: token.expiresAt,
           tokenType: "Bearer",
-          scope:
-            "openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
+          scope: token.scope,
           savedAt: new Date().toISOString(),
         };
-
         await saveTokenToMongo(tokenData);
-
-        const expiryTime = new Date((token.expiresAt as number) * 1000);
-        console.log(`📅 Token expires at: ${expiryTime.toLocaleString()}`);
-        console.log(
-          `🔑 Access token preview: ${String(token.accessToken).substring(0, 20)}...`,
-        );
       }
 
       return session;
     },
     async signIn({ user, account, profile }) {
-      console.log("Sign in attempt:", {
-        user: user.email,
-        account: account?.provider,
-      });
+      console.log(user, account, profile);
       return true;
     },
   },
