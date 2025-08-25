@@ -1,5 +1,7 @@
 "use client";
 import { Connectors } from "@/components/Connectors";
+import { AuthorizationModal } from "@/components/AuthorizationModal"; // Ensure this path is correct for your project
+import { toast } from "sonner";
 
 import {
   Home,
@@ -8,8 +10,8 @@ import {
   ChevronDown,
   ChevronUp,
   User2,
-  BellDot,
-  History, // Using History icon for session items
+  History,
+  MoreHorizontal, // Icon for the "three dots" menu
 } from "lucide-react";
 
 import {
@@ -19,7 +21,7 @@ import {
 } from "@/components/ui/collapsible";
 
 import { useSession } from "next-auth/react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 import {
   Sidebar,
@@ -44,94 +46,160 @@ import { signOut } from "next-auth/react";
 import SettingsModal from "@/components/SettingsModal";
 
 // --- INTERFACES & PROPS ---
+const AUTH_API_URL = process.env.NEXT_PUBLIC_TOOL_API_BASE_URL; // e.g., 'http://localhost:9000/auth'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL; // e.g. 'http://localhost:8000/api'
 
-const DEFAULT_TOOL_NAME = "default_tool";
-const TOOL_API_URL = process.env.NEXT_PUBLIC_TOOL_API_BASE_URL;
-
-// Represents a single session object received from the backend
 interface UserSession {
   session_id: string;
   last_updated: string;
   message_count: number;
 }
 
-// Defines the props this component expects from its parent (ChatPage)
 interface ChatSidebarProps {
   sessions: UserSession[];
+  setSessions: React.Dispatch<React.SetStateAction<UserSession[]>>; // Required to update the list after deletion
   activeSessionId: string;
   onSelectSession: (sessionId: string) => void;
   onCreateNewSession: () => void;
 }
 
-// The component now accepts the defined props
+interface AuthRequest {
+  session_id: string;
+  tool_name: string;
+  tool_args: Record<string, any>;
+}
+
 export function ChatSidebar({
   sessions,
+  setSessions,
   activeSessionId,
   onSelectSession,
   onCreateNewSession,
 }: ChatSidebarProps) {
   const { data: session } = useSession();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [activeTool, setActiveTool] = useState<string | null>(null);
-  const [seenTools, setSeenTools] = useState<string[]>([]);
   const [isConnectorsOpen, setIsConnectorsOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authRequest, setAuthRequest] = useState<AuthRequest | null>(null);
 
-  // --- Tool Action Logic ---
-  const fetchApiStatus = useCallback(async () => {
-    if (!TOOL_API_URL) return; // Don't fetch if the URL isn't set
+  // BUG FIX: Refs to prevent polling race conditions and repeat notifications
+  const isResponding = useRef(false);
+  const notifiedRequests = useRef(new Set());
+
+  const pollForAuthRequest = useCallback(async () => {
+    // Pause polling if the modal is open, a response is being sent, or there's no active session
+    if (
+      !AUTH_API_URL ||
+      isAuthModalOpen ||
+      !activeSessionId ||
+      isResponding.current
+    )
+      return;
+
     try {
-      const response = await fetch(TOOL_API_URL);
-      if (!response.ok) {
-        setActiveTool(null);
-        return;
-      }
-      const data = await response.json();
-      if (data.tool_name && data.tool_name !== DEFAULT_TOOL_NAME) {
-        setActiveTool(data.tool_name);
-      } else {
-        setActiveTool(null);
+      const response = await fetch(`${AUTH_API_URL}/${activeSessionId}`);
+      if (!response.ok) return;
+
+      const data: AuthRequest = await response.json();
+
+      // If a request exists and we haven't already shown a toast for it...
+      if (
+        data &&
+        data.tool_name &&
+        !notifiedRequests.current.has(data.session_id)
+      ) {
+        notifiedRequests.current.add(data.session_id); // Mark as notified to prevent toast spam
+        toast.warning("Authorization Required", {
+          description: `The AI needs permission to use the '${data.tool_name}' tool.`,
+          action: {
+            label: "Review",
+            onClick: () => {
+              setAuthRequest(data);
+              setIsAuthModalOpen(true);
+            },
+          },
+          duration: 120000, // Stay for 2 minutes or until dismissed
+        });
       }
     } catch (error) {
-      console.error(`Failed to fetch from API on ${TOOL_API_URL}:`, error);
-      setActiveTool(null);
+      console.error(`Failed to fetch auth status:`, error);
     }
-  }, []);
+  }, [activeSessionId, isAuthModalOpen]);
 
   useEffect(() => {
-    fetchApiStatus();
-    const intervalId = setInterval(fetchApiStatus, 5000);
+    const intervalId = setInterval(pollForAuthRequest, 2500); // Poll every 2.5 seconds
     return () => clearInterval(intervalId);
-  }, [fetchApiStatus]);
+  }, [pollForAuthRequest]);
 
-  const updateAndResetApi = async (status: "A" | "D") => {
-    if (!TOOL_API_URL) return false; // Don't fetch if the URL isn't set
+  const handleAuthResponse = async (
+    authorization: "A" | "D",
+    modifiedArgs?: Record<string, any>,
+  ) => {
+    if (!AUTH_API_URL || !authRequest) return;
+
+    // BUG FIX: Immediately pause polling
+    isResponding.current = true;
+    setIsAuthModalOpen(false);
+
     try {
-      const requestBody = {
-        authorization: status,
-        tool_name: "default_tool",
-        tool_args: {},
-      };
-      await fetch(TOOL_API_URL, {
+      await fetch(`${AUTH_API_URL}/respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          session_id: authRequest.session_id,
+          authorization,
+          tool_args: modifiedArgs,
+        }),
       });
-      return true;
     } catch (error) {
-      console.error("Failed to update API state:", error);
-      return false;
+      console.error("Failed to submit auth response:", error);
+      toast.error("Failed to send authorization response.");
+    } finally {
+      // After a delay, reset state and resume polling
+      setTimeout(() => {
+        notifiedRequests.current.delete(authRequest.session_id);
+        setAuthRequest(null);
+        isResponding.current = false;
+      }, 3000); // Wait 3 seconds for the backend to process the response
     }
   };
 
-  const handleAction = async (toolName: string, status: "A" | "D") => {
-    const success = await updateAndResetApi(status);
-    if (success) {
-      setSeenTools([]);
-      await fetchApiStatus();
+  const handleDeleteSession = async (sessionIdToDelete: string) => {
+    if (!session?.user?.email) {
+      toast.error("Could not delete: User email not found.");
+      return;
+    }
+
+    const previousSessions = sessions;
+    setSessions((currentSessions) =>
+      currentSessions.filter((s) => s.session_id !== sessionIdToDelete),
+    );
+
+    try {
+      const encodedEmail = encodeURIComponent(session.user.email);
+      const response = await fetch(
+        `${API_BASE_URL}/api/session/${sessionIdToDelete}?email=${encodedEmail}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}`);
+      }
+
+      toast.success("Session deleted.");
+
+      if (activeSessionId === sessionIdToDelete) {
+        onCreateNewSession();
+      }
+    } catch (error) {
+      console.error("Deletion error:", error);
+      toast.error("Failed to delete session. Restoring list.");
+      setSessions(previousSessions); // Rollback on failure
     }
   };
 
-  // --- Sidebar Items ---
   const items = [
     { title: "Home", url: "/", icon: Home, onClick: null },
     {
@@ -155,14 +223,10 @@ export function ChatSidebar({
     }
   };
 
-  const isToolNotificationVisible =
-    activeTool && !seenTools.includes(activeTool);
-
   return (
     <>
       <Sidebar side="left" variant="floating" collapsible="offcanvas">
         <SidebarContent>
-          {/* --- Application Group --- */}
           <SidebarGroup>
             <SidebarGroupLabel />
             <SidebarGroupLabel />
@@ -186,42 +250,6 @@ export function ChatSidebar({
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {/* --- Action Required Group --- */}
-          {isToolNotificationVisible && (
-            <SidebarGroup>
-              <SidebarGroupLabel>Action Required</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <div className="flex items-center w-full group transition-all duration-300">
-                      <SidebarMenuButton className="flex-grow justify-start text-yellow-400 hover:text-yellow-300">
-                        <BellDot size={18} />
-                        <span className="font-semibold">{activeTool}</span>
-                      </SidebarMenuButton>
-                      <div className="flex items-center ml-2 space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleAction(activeTool!, "A")}
-                          className="text-xs text-white font-semibold bg-green-600 hover:bg-green-500 rounded px-2 py-1 transition-colors"
-                          title={`Approve ${activeTool}`}
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => handleAction(activeTool!, "D")}
-                          className="text-xs text-white font-semibold bg-red-600 hover:bg-red-500 rounded px-2 py-1 transition-colors"
-                          title={`Deny ${activeTool}`}
-                        >
-                          Deny
-                        </button>
-                      </div>
-                    </div>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
-
-          {/* --- Dynamic Session History Group --- */}
           <Collapsible defaultOpen className="group/collapsible">
             <SidebarGroup>
               <SidebarGroupLabel asChild>
@@ -235,14 +263,13 @@ export function ChatSidebar({
                   <SidebarMenu>
                     {sessions.length > 0 ? (
                       sessions.map((sess) => (
-                        <SidebarMenuItem key={sess.session_id}>
+                        <SidebarMenuItem
+                          key={sess.session_id}
+                          className="relative group/item"
+                        >
                           <SidebarMenuButton
                             onClick={() => onSelectSession(sess.session_id)}
-                            className={
-                              sess.session_id === activeSessionId
-                                ? "bg-gray-700/50 text-white font-semibold"
-                                : ""
-                            }
+                            className={`w-full ${sess.session_id === activeSessionId ? "bg-gray-700/50 text-white font-semibold" : ""}`}
                           >
                             <History size={16} className="flex-shrink-0" />
                             <span className="truncate flex-1 text-left">
@@ -258,6 +285,24 @@ export function ChatSidebar({
                               )}
                             </span>
                           </SidebarMenuButton>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md opacity-0 group-hover/item:opacity-100 hover:bg-gray-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 transition-opacity">
+                                <MoreHorizontal size={16} />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent side="right">
+                              <DropdownMenuItem
+                                className="text-red-500 focus:text-red-400 focus:bg-red-900/50 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteSession(sess.session_id);
+                                }}
+                              >
+                                Delete Chat
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </SidebarMenuItem>
                       ))
                     ) : (
@@ -274,7 +319,6 @@ export function ChatSidebar({
           </Collapsible>
         </SidebarContent>
 
-        {/* --- User Menu in Footer --- */}
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -308,11 +352,9 @@ export function ChatSidebar({
                   <DropdownMenuItem>
                     <span>Billing</span>
                   </DropdownMenuItem>
-
                   <DropdownMenuItem onClick={() => setIsConnectorsOpen(true)}>
                     <span>Connectors</span>
                   </DropdownMenuItem>
-
                   <DropdownMenuItem
                     onClick={() => signOut({ callbackUrl: "/" })}
                   >
@@ -332,6 +374,13 @@ export function ChatSidebar({
       <Connectors
         isOpen={isConnectorsOpen}
         onClose={() => setIsConnectorsOpen(false)}
+      />
+
+      <AuthorizationModal
+        isOpen={isAuthModalOpen}
+        onClose={() => handleAuthResponse("D")}
+        authRequest={authRequest}
+        onSubmit={handleAuthResponse}
       />
     </>
   );

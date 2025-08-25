@@ -54,9 +54,11 @@ SECRETS_COLLECTION_NAME = os.getenv("SECRETS_COLLECTION_NAME")
 chatmap = {}
 session_id = os.getenv("DEFAULT_SESSION_ID")
 user_email = os.getenv("DEFAULT_USER_EMAIL")
+current_api_session_id = None
+
 
 # --- ENHANCED PERSISTENCE PATHS (Legacy, for command history only) ---
-PROJECT_ROOT = Path("/home/anubhav/courses/luna-version-x/backend/langgraph")
+PROJECT_ROOT = Path("./")
 COMMAND_HISTORY_FILE = PROJECT_ROOT / "langchain_chat_history.json"
 
 # Ensure directories exist for command history
@@ -1060,35 +1062,81 @@ def create_tool_node_with_fallback(tools: list):
     from langchain_core.runnables import RunnableLambda
     return ToolNode(tools).with_fallbacks([RunnableLambda(handle_tool_error)], exception_key="error")
 
+
+# In test.py
+
 def get_user_authorization(tool_calls):
-    """Get user authorization for sensitive tool calls"""
+    """⭐ UPDATED to handle user-modified tool arguments from the auth server."""
+    global current_api_session_id
+
+    if not current_api_session_id:
+        raise Exception("Authorization failed: API Session ID not found.")
+
     authorized_calls = []
+    AUTH_BASE_URL = "http://localhost:9000/auth"
+
     for tool_call in tool_calls:
         tool_name = tool_call["name"]
         if tool_name in REQUIRES_AUTHORIZATION:
-            print(f"\n🔐 AUTHORIZATION REQUIRED for {tool_name}")
-            print(f"📋 {REQUIRES_AUTHORIZATION[tool_name]}")
-            print(f"🔧 Parameters: {json.dumps(tool_call['args'], indent=2)}")
-            AUTH_URL = "http://localhost:9000/"
-            data, basic_data = {"tool_name": tool_name, "tool_args": tool_call['args'], "authorization": "null"}, {"tool_name": "default_tool", "tool_args": {}, "authorization": "null"}
-            requests.post(AUTH_URL, json=data)
-            while True:
-                resp = requests.get(AUTH_URL)
-                config_data = resp.json()
-                if config_data.get("authorization") is not None:
-                    auth = config_data["authorization"].upper()
-                    if auth == "A":
-                        authorized_calls.append(tool_call)
-                        requests.post(AUTH_URL, json=basic_data)
-                        break
-                    elif auth == "D":
-                        denied_call = tool_call.copy()
-                        denied_call["denied"] = True
-                        authorized_calls.append(denied_call)
-                        requests.post(AUTH_URL, json=basic_data)
-                        break
+            print(f"\n🔐 AUTHORIZATION REQUIRED for {tool_name} in session {current_api_session_id}")
+
+            # 1. Post the request (no change here)
+            request_payload = {
+                "session_id": current_api_session_id,
+                "tool_name": tool_name,
+                "tool_args": tool_call['args']
+            }
+            try:
+                requests.post(f"{AUTH_BASE_URL}/request", json=request_payload, timeout=5)
+            except requests.RequestException as e:
+                denied_call = tool_call.copy()
+                denied_call["denied"] = True
+                authorized_calls.append(denied_call)
+                continue
+
+            # 2. Poll for the result (no change here)
+            start_time = time.time()
+            timeout_seconds = 120 # Increased timeout for user modification
+            final_auth_data = None
+
+            while time.time() - start_time < timeout_seconds:
+                try:
+                    resp = requests.get(f"{AUTH_BASE_URL}/status/{current_api_session_id}", timeout=5)
+                    if resp.status_code == 200:
+                        status_data = resp.json()
+                        if status_data.get("authorization") is not None:
+                            final_auth_data = status_data
+                            break
+                except requests.RequestException as e:
+                    print(f"Error polling auth status: {e}")
+
+                time.sleep(1)
+
+            # 3. ⭐ Process the decision, checking for modified arguments
+            if final_auth_data and final_auth_data.get("authorization") == "A":
+                print("User approved the action.")
+
+                # Create a copy of the original tool call to modify
+                approved_call = tool_call.copy()
+
+                # Check if the user provided new arguments
+                if final_auth_data.get("tool_args"):
+                    print("Applying user modifications to tool arguments.")
+                    # Update the arguments with the user's changes
+                    approved_call["args"] = final_auth_data["tool_args"]
+
+                authorized_calls.append(approved_call)
+            else:
+                if not final_auth_data:
+                    print("Authorization timed out. Denying tool call.")
+                else:
+                    print("User denied the action.")
+                denied_call = tool_call.copy()
+                denied_call["denied"] = True
+                authorized_calls.append(denied_call)
         else:
             authorized_calls.append(tool_call)
+
     return authorized_calls
 
 class MixedToolNode:
@@ -1138,6 +1186,9 @@ def create_agent_graph():
 - **Name**: Luna - Your intelligent productivity companion
 - **Personality**: Professional, helpful, proactive, and detail-oriented
 - **Goal**: Maximize user productivity through intelligent automation and seamless task management
+
+  REMEBER WHEN THE VERIFICATION FAILS FOR ANY SENTITIVE TOOLS AND USER TELLS YOU TO DO IT AGAIN , YOU NEED TO DO IT AGAIN,
+  DONT TELL THE USER THAT YOU THAT IT CANT BE DONE,JUST CALL THE TOOL AGAIN.
 
 **🛠️ AVAILABLE TOOL CATEGORIES:**
 
@@ -1235,12 +1286,6 @@ def create_agent_graph():
 - Clearly explain what data will be accessed or modified
 - Provide summaries of completed actions for transparency
 - Never assume permissions for destructive operations
-
-**9. TIME-SENSITIVE INTELLIGENCE**
-- Prioritize urgent requests (same-day meetings, immediate emails)
-- Consider business hours for scheduling suggestions
-- Account for time zones in multi-participant events
-- Suggest optimal timing based on calendar availability
 
 **10. CONTINUOUS WORKFLOW OPTIMIZATION**
 - Remember user preferences from conversation history

@@ -1,0 +1,30 @@
+# Use an official Python 3.10 slim image as a parent image
+FROM python:3.10-slim
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Copy the dependency file to the working directory
+COPY requirements.txt .
+
+# Install the Python dependencies
+# --no-cache-dir reduces the image size by not storing the pip cache
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy all your application files into the container
+COPY api_server.py .
+COPY server.py .
+COPY test.py .
+COPY start.sh .
+# If you have a .env file, you can copy it too, but see the security note below.
+# COPY .env .
+
+# Make the startup script executable inside the container (redundant if done locally, but good practice)
+RUN chmod +x /app/start.sh
+
+# Expose the ports that the servers will run on
+EXPOSE 8000
+EXPOSE 9000
+
+# Set the command to run when the container starts
+CMD ["/app/start.sh"]

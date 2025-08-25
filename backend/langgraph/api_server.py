@@ -34,7 +34,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from urllib.parse import unquote
-
+from fastapi import Response
 
 from fastapi import FastAPI, HTTPException
 from fastapi import APIRouter
@@ -229,6 +229,7 @@ def invoke_agent(email: str, session_id: str, user_input: str) -> (str, List[Dic
 
     # Setup the user session
     actual_session_id = setup_user_session(email, session_id)
+    backend.current_api_session_id = actual_session_id
     config = {"configurable": {"thread_id": actual_session_id}}
 
     try:
@@ -502,6 +503,40 @@ def get_user_sessions(email: str):
         count=len(session_infos)
     )
 
+
+@router.delete("/session/{session_id}", status_code=204)
+def delete_session(session_id: str, email: str):
+    """Deletes a specific chat session for a user."""
+    ensure_agent_initialized()
+    if not backend.db_client:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    decoded_email = unquote(email).strip().lower()
+
+    # 1. Delete the main chat data from the chats database
+    db2 = backend.db_client[backend.CHATS_DB_NAME]
+    chats_collection = db2[backend.CHATS_COLLECTION_NAME]
+    delete_result = chats_collection.delete_one({"_id": session_id, "user_email": decoded_email})
+
+    if delete_result.deleted_count == 0:
+        # This prevents users from deleting sessions that aren't theirs
+        # Or if the session_id is wrong
+        raise HTTPException(status_code=404, detail="Session not found or access denied")
+
+    # 2. Remove the session metadata from the user's session list
+    db1 = backend.db_client[backend.METADATA_DB_NAME]
+    metadata_collection = db1[backend.METADATA_COLLECTION_NAME]
+    metadata_collection.update_one(
+        {"_id": decoded_email},
+        {"$pull": {"sessions": {"session_id": session_id}}}
+    )
+
+    # 3. Clean up in-memory cache if it exists
+    if session_id in backend.chatmap:
+        del backend.chatmap[session_id]
+
+    print(f"🗑️ Deleted session {session_id} for user {decoded_email}")
+    return Response(status_code=204)
 
 @app.get("/health")
 def health():

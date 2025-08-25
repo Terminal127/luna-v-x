@@ -25,6 +25,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 
 // --- CONSTANTS ---
+console.log("API Base URL:", process.env.NEXT_PUBLIC_API_BASE_URL);
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export function LoaderThreeDemo() {
@@ -573,6 +575,7 @@ export default function ChatPage() {
       >
         <ChatSidebar
           sessions={userSessions}
+          setSessions={setUserSessions}
           activeSessionId={sessionId}
           onSelectSession={handleSelectSession}
           onCreateNewSession={handleCreateNewSession}
