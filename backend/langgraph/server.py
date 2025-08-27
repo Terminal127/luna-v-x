@@ -1,18 +1,20 @@
-# server.py (with modifications)
+# server.py (Upgraded with WebSockets)
 
 import os
 import json
-import redis
-from fastapi import FastAPI, HTTPException
+import asyncio
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+import redis
 
+# --- Initialization ---
 load_dotenv()
+app = FastAPI(title="Tool Authorization API (WebSocket-Powered)")
 
-app = FastAPI(title="Tool Authorization API (Redis-Powered)")
-
+# Enable CORS for HTTP endpoints
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,7 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Redis Connection (No changes) ---
+# --- Redis Connection ---
 try:
     r = redis.Redis(
         host=os.getenv("REDIS_HOST"),
@@ -39,7 +41,7 @@ except Exception as e:
 KEY_PREFIX = "auth:"
 KEY_EXPIRY_SECONDS = 600
 
-# --- Pydantic Models (AuthResponse is updated) ---
+# --- Pydantic Models (Unchanged) ---
 class AuthRequest(BaseModel):
     session_id: str
     tool_name: str
@@ -47,15 +49,67 @@ class AuthRequest(BaseModel):
 
 class AuthResponse(BaseModel):
     session_id: str
-    authorization: str  # "A" for approve, "D" for deny
-    # ⭐ NEW: Add an optional field for the user's modified arguments
+    authorization: str
     tool_args: Optional[Dict[str, Any]] = None
 
-# --- API Endpoints (/auth/respond is updated) ---
+# --- WebSocket Connection Manager ---
+# This class handles the "phone lines" for each user.
+class ConnectionManager:
+    def __init__(self):
+        # A dictionary to store the active connection for each session_id
+        self.active_connections: Dict[str, WebSocket] = {}
+
+    async def connect(self, websocket: WebSocket, session_id: str):
+        """Accept a new WebSocket connection and store it."""
+        await websocket.accept()
+        self.active_connections[session_id] = websocket
+        print(f"📞 WebSocket connected for session: {session_id}")
+
+    def disconnect(self, session_id: str):
+        """Remove a disconnected WebSocket."""
+        if session_id in self.active_connections:
+            del self.active_connections[session_id]
+            print(f"🔌 WebSocket disconnected for session: {session_id}")
+
+    async def send_notification(self, message: dict, session_id: str):
+        """Send a JSON message (notification) to a specific user's session."""
+        if session_id in self.active_connections:
+            websocket = self.active_connections[session_id]
+            try:
+                await websocket.send_json(message)
+                print(f"📨 Sent notification to session: {session_id}")
+            except Exception as e:
+                print(f"Error sending notification to {session_id}: {e}")
+                self.disconnect(session_id)
+
+manager = ConnectionManager()
+
+# --- WebSocket Endpoint ---
+@app.websocket("/ws/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    """
+    This is the main WebSocket endpoint that frontends connect to.
+    It establishes a persistent "phone line" for a given session.
+    """
+    await manager.connect(websocket, session_id)
+    try:
+        # Loop indefinitely to keep the connection open.
+        # The frontend doesn't need to send messages, just listen.
+        while True:
+            # We wait here. If the client disconnects, a WebSocketDisconnect
+            # exception will be raised, and we can clean up.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(session_id)
+
+# --- API Endpoints (HTTP) ---
 
 @app.get("/auth/{session_id}")
 def get_auth_request(session_id: str):
-    # No changes to this endpoint
+    """
+    Allows the frontend to get the current request details if it missed
+    the WebSocket notification (e.g., due to a page refresh).
+    """
     if not r: raise HTTPException(status_code=503, detail="Redis not connected")
     key = f"{KEY_PREFIX}{session_id}"
     auth_request_json = r.get(key)
@@ -64,8 +118,11 @@ def get_auth_request(session_id: str):
     return json.loads(auth_request_json)
 
 @app.post("/auth/request")
-def request_authorization(req: AuthRequest):
-    # No changes to this endpoint
+async def request_authorization(req: AuthRequest): # Note: This is now an async function
+    """
+    The backend agent calls this endpoint. It saves the request to Redis
+    and then pushes an instant notification to the connected frontend via WebSocket.
+    """
     if not r: raise HTTPException(status_code=503, detail="Redis not connected")
     key = f"{KEY_PREFIX}{req.session_id}"
     payload = {
@@ -75,41 +132,43 @@ def request_authorization(req: AuthRequest):
         "authorization": None
     }
     r.set(key, json.dumps(payload), ex=KEY_EXPIRY_SECONDS)
-    return {"message": f"Authorization requested for session {req.session_id}"}
+
+    # ⭐ The key change: Send a notification over the WebSocket "phone line"
+    await manager.send_notification(payload, req.session_id)
+
+    return {"message": f"Authorization requested and notification sent for session {req.session_id}"}
 
 @app.post("/auth/respond")
 def respond_to_authorization(res: AuthResponse):
-    """⭐ UPDATED to handle modified tool arguments."""
+    """
+    The frontend calls this HTTP endpoint when the user makes a decision
+    (Approve, Deny, Modify). This logic is unchanged.
+    """
     if not r: raise HTTPException(status_code=503, detail="Redis not connected")
-
     key = f"{KEY_PREFIX}{res.session_id}"
     auth_request_json = r.get(key)
     if not auth_request_json:
         raise HTTPException(status_code=404, detail="No active authorization request for this session.")
 
     auth_data = json.loads(auth_request_json)
-
-    # Update the authorization status
     auth_data["authorization"] = res.authorization
 
-    # If the user approved WITH modifications, update the tool_args
     if res.authorization == "A" and res.tool_args:
-        print(f"User approved with modifications for session {res.session_id}: {res.tool_args}")
         auth_data["tool_args"] = res.tool_args
 
     ttl = r.ttl(key)
     r.set(key, json.dumps(auth_data), ex=ttl if ttl > 0 else KEY_EXPIRY_SECONDS)
-
     return {"message": "Response recorded."}
 
 @app.get("/auth/status/{session_id}")
 def get_auth_status(session_id: str):
-    # ⭐ UPDATED to return the whole payload on decision
+    """
+    The backend agent still polls this endpoint to get the final decision.
+    This logic is also unchanged.
+    """
     if not r: raise HTTPException(status_code=503, detail="Redis not connected")
-
     key = f"{KEY_PREFIX}{session_id}"
     auth_request_json = r.get(key)
-
     if not auth_request_json:
         return {"authorization": None}
 
@@ -118,7 +177,6 @@ def get_auth_status(session_id: str):
 
     if decision is not None:
         r.delete(key)
-        # Return the entire object so the agent can check for modified args
         return auth_data
 
     return {"authorization": None}
