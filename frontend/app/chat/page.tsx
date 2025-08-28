@@ -23,11 +23,13 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ChatSidebar } from "../../components/chat-sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
+import { Sparkles } from "lucide-react";
 
 // --- CONSTANTS ---
 console.log("API Base URL:", process.env.NEXT_PUBLIC_API_BASE_URL);
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const THOUGHTS_WEBSOCKET_URL = "ws://localhost:8001/ws/thoughts";
 
 export function LoaderThreeDemo() {
   return <LoaderThree />;
@@ -118,7 +120,8 @@ export default function ChatPage() {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
   const [hasAnimatedIn, setHasAnimatedIn] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false); // Add this state
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [agentThought, setAgentThought] = useState<string | null>(null);
 
   const flipWords = ["helpful", "creative", "intelligent", "powerful"];
 
@@ -281,6 +284,35 @@ export default function ChatPage() {
     createNewSession,
     isInitialized,
   ]);
+
+  useEffect(() => {
+    console.log("Attempting to connect to thoughts stream...");
+    const ws = new WebSocket(THOUGHTS_WEBSOCKET_URL);
+
+    ws.onopen = () => {
+      console.log("✅ Connected to thoughts stream.");
+    };
+
+    // This is the magic: When a new thought arrives from the server,
+    // we update our state, which will cause the UI to re-render.
+    ws.onmessage = (event) => {
+      console.log(`🧠 Thought received: "${event.data}"`);
+      setAgentThought(event.data);
+    };
+
+    ws.onerror = (error) => {
+      console.error("❌ Thoughts WebSocket error:", error);
+    };
+
+    ws.onclose = () => {
+      console.log("🔌 Disconnected from thoughts stream.");
+    };
+
+    // This cleanup function ensures we close the connection when the user navigates away.
+    return () => {
+      ws.close();
+    };
+  }, []);
 
   // --- HANDLERS TO PASS TO SIDEBAR ---
   const handleCreateNewSession = async () => {
@@ -464,6 +496,7 @@ export default function ChatPage() {
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       if (!currentMessage.trim() || isLoading || !sessionId) return;
+      setAgentThought("Sending to agent...");
       await getSession();
       const messageText = currentMessage.trim();
       const userMessage: Message = {
@@ -496,6 +529,7 @@ export default function ChatPage() {
       };
 
       setIsLoading(false);
+      setAgentThought(null);
 
       if (typingEffectEnabled) {
         setMessages((prev) => [...prev, { ...assistantMessage, content: "" }]);
@@ -670,6 +704,15 @@ export default function ChatPage() {
                       </div>
                     )}
                   </div>
+                  {/* ⭐ 5. NEW UI ELEMENT: The "Thoughts" display bar at the bottom of the chat window. */}
+                  {(isLoading || currentGeneratingId) && agentThought && (
+                    <div className="flex-shrink-0 border-t border-[#414868] p-2 px-4 bg-[#1a1b26]/50 backdrop-blur-sm animate-in fade-in duration-300">
+                      <div className="flex items-center gap-2 text-xs text-[#a9b1d6]">
+                        <Sparkles className="h-4 w-4 animate-pulse text-[#7aa2f7]" />
+                        <span className="italic">{agentThought}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

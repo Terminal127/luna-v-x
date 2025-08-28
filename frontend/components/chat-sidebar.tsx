@@ -46,8 +46,8 @@ import { signOut } from "next-auth/react";
 import SettingsModal from "@/components/SettingsModal";
 
 // --- INTERFACES & PROPS ---
-const AUTH_API_URL = process.env.NEXT_PUBLIC_TOOL_API_BASE_URL; // e.g., 'http://localhost:9000/auth'
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL; // e.g. 'http://localhost:8000/api'
+const AUTH_API_URL = process.env.NEXT_PUBLIC_TOOL_API_BASE_URL;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 interface UserSession {
   session_id: string;

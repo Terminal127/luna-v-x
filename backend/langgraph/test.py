@@ -954,6 +954,40 @@ def get_meet_space(space_name: str) -> str:
     except Exception as e:
         return f"⚠️ Error getting Meet space: {str(e)}"
 
+@tool
+def update_thought_process(step: str):
+    """
+    Call this tool at every step of your process to update the user on your current thought or action.
+    This is your way of 'thinking out loud'. Always call this before using any other tool.
+
+    Example Usage:
+    - update_thought_process(step="Analyzing the user's request...")
+    - update_thought_process(step="Planning to use the read_gmail_messages tool...")
+    - update_thought_process(step="Summarizing the results...")
+    """
+    try:
+        # This tool makes a simple, non-critical POST request to our new Thoughts Server.
+        # We use a short timeout because we don't want this to slow down the agent.
+        # If it fails, it's not a big deal; the agent's main task can continue.
+        response = requests.post(
+            "http://localhost:8001/thought",
+            json={"step": step}, # Send the thought as a JSON payload
+            timeout=2 # 2-second timeout
+        )
+        # Check if the request was successful
+        if response.status_code == 200:
+            print(f"✅ Thought sent successfully: '{step}'")
+        else:
+            print(f"⚠️ Warning: Failed to send thought. Server responded with {response.status_code}")
+
+    except requests.RequestException as e:
+        # This will catch connection errors, timeouts, etc.
+        print(f"⚠️ Warning: Could not send thought to the thoughts_server: {e}")
+
+    # It is important that this tool returns a confirmation message back to the agent,
+    # so the agent knows the action was acknowledged and can move on.
+    return f"Successfully updated the user with the current step: {step}"
+
 
 @tool
 def end_meet_space(space_name: str) -> str:
@@ -1045,11 +1079,8 @@ def list_calendar_list() -> str:
         return f"⚠️ Error listing calendars: {str(e)}"
 
 
-# ==============================================================================
-#  AGENT AND GRAPH SETUP (No changes needed here)
-# ==============================================================================
-# Separate tools into safe and sensitive categories
-safe_tools = [get_current_time, calculate, get_chat_history_summary, task_planner, youtube_search, list_calendar_events, get_meet_space, list_calendar_list,chrome_tab_controller]
+
+safe_tools = [get_current_time, calculate, get_chat_history_summary, task_planner, youtube_search, list_calendar_events, get_meet_space, list_calendar_list,chrome_tab_controller,update_thought_process]
 sensitive_tools = [read_gmail_messages, send_gmail_message,create_calendar_event,update_calendar_event, delete_calendar_event,create_meet_space, end_meet_space]
 sensitive_tool_names = {t.name for t in sensitive_tools}
 all_tools = safe_tools + sensitive_tools
@@ -1181,6 +1212,25 @@ def create_agent_graph():
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are Luna, an advanced AI assistant powered by Google Gemini with comprehensive productivity and automation capabilities. You have access to a powerful suite of tools for managing emails, calendars, meetings, files, web content, and system operations.
+
+**⭐ CRITICAL NEW RULE: NARRATE YOUR ACTIONS ⭐**
+        Your HIGHEST PRIORITY is to be transparent with the user. Before you perform any significant action or call any other tool, you MUST first call the `update_thought_process` tool to explain what you are about to do. This is how you "think out loud."
+
+        **CORRECT WORKFLOW EXAMPLE:**
+        User: "Read my latest email and tell me the summary."
+
+        1.  **Your First Action:** Call `update_thought_process(step="Analyzing the request to read an email...")`
+        2.  **Your Second Action:** Call `update_thought_process(step="Planning to use the `read_gmail_messages` tool...")`
+        3.  **Your Third Action:** Call the actual tool, `read_gmail_messages(top=1)`
+        4.  **(After getting the tool's result back)**
+        5.  **Your Fourth Action:** Call `update_thought_process(step="Summarizing the email content...")`
+        6.  **Your Final Action:** Provide the final summary to the user.
+
+        **INCORRECT WORKFLOW:**
+        User: "Read my latest email."
+        - Calling `read_gmail_messages(top=1)` immediately. <== THIS IS WRONG. You forgot to think out loud first.
+
+        Always, always call `update_thought_process` to narrate your plan and your actions as you perform them. This is not optional.
 
 **🎯 CORE IDENTITY:**
 - **Name**: Luna - Your intelligent productivity companion
