@@ -16,6 +16,7 @@ COPY api_server.py .
 COPY server.py .
 COPY test.py .
 COPY start.sh .
+COPY thoughts_server.py .
 # If you have a .env file, you can copy it too, but see the security note below.
 # COPY .env .
 
@@ -25,6 +26,6 @@ RUN chmod +x /app/start.sh
 # Expose the ports that the servers will run on
 EXPOSE 8000
 EXPOSE 9000
-
+EXPOSE 8001
 # Set the command to run when the container starts
 CMD ["/app/start.sh"]
