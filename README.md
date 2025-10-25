@@ -1,54 +1,88 @@
-# 🌙 Luna Version X | Next-Gen AI Chat Interface
-
 <div align="center">
-  <img src="assets/normalflow.png" alt="Luna Version X Flow" width="800px"/>
-  <p><em>Luna Version X - Advanced AI Chat Interface with Real-time Tool Integration</em></p>
+    <img src="assets/normalflow.png" width="700" height="auto">
+    <br><br>
+    <a href="https://github.com/Terminal127/luna-version-x/commits">
+        <img src="https://img.shields.io/github/last-commit/Terminal127/luna-version-x?&style=for-the-badge&logo=git&color=7aa2f7&logoColor=c0caf5&labelColor=1a1b26" alt="Last Commit">
+    </a>
+    <a href="https://github.com/Terminal127/luna-version-x/stargazers">
+        <img src="https://img.shields.io/github/stars/Terminal127/luna-version-x?style=for-the-badge&logo=starship&color=bb9af7&logoColor=c0caf5&labelColor=1a1b26" alt="Stars">
+    </a>
+    <a href="https://github.com/Terminal127/luna-version-x">
+        <img src="https://img.shields.io/github/repo-size/Terminal127/luna-version-x?color=7dcfff&label=SIZE&logo=files&style=for-the-badge&logoColor=c0caf5&labelColor=1a1b26" alt="Repo Size">
+    </a>
+    <a href="https://github.com/Terminal127/luna-version-x/blob/master/LICENSE">
+        <img src="https://img.shields.io/badge/license-MIT-orange.svg?style=for-the-badge&logo=opensourceinitiative&color=9ece6a&logoColor=c0caf5&labelColor=1a1b26">
+    </a>
+    <a href="https://github.com/Terminal127/luna-version-x/issues">
+        <img src="https://img.shields.io/github/issues/Terminal127/luna-version-x?style=for-the-badge&logo=bugatti&color=f7768e&logoColor=c0caf5&labelColor=1a1b26" alt="Issues">
+    </a>
 </div>
 
-## 🌟 Overview
+# 🌙 Luna Version X
 
-Luna Version X is an enterprise-grade AI chat interface that combines cutting-edge technologies with a beautiful, responsive design. Built with Next.js 15, FastAPI, MongoDB, and LangChain, it offers a sophisticated platform for AI-powered conversations with real-time tool integration and persistent storage.
+A next-generation AI chat interface powered by LangChain and Google's Generative AI, featuring a stunning Tokyo Night theme and real-time tool integration.
 
+## 🎥 Demo
 <div align="center">
-  <img src="assets/mongo.png" alt="MongoDB Integration" width="600px"/>
-  <p><em>Robust Data Persistence with MongoDB Atlas Integration</em></p>
+  <table>
+    <tr>
+      <td align="center">
+        <img src="assets/screenshot-2025-10-25_23-31-52.png" alt="Luna Version X Interface">
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <img src="assets/mongo.png" alt="MongoDB Integration">
+      </td>
+    </tr>
+  </table>
 </div>
 
 ## ✨ Key Features
 
-### Core Capabilities
-- 🤖 **Advanced AI Integration** - Powered by Google's Generative AI through LangChain
-- 🔄 **Real-time Updates** - WebSocket-based thought process visualization
-- 🛠️ **Dynamic Tool System** - Interactive tool authorization and execution
-- 💾 **Persistent Storage** - MongoDB Atlas for reliable data management
-- 🔐 **Secure Authentication** - NextAuth.js with robust session management
+* **Advanced AI Integration**
+  - LangChain-powered conversations
+  - Real-time thought process visualization
+  - Dynamic tool integration system
+  - Intelligent context management
 
-### User Interface
-- 🎨 **Modern Design** - Clean, intuitive interface with responsive layouts
-- 🌓 **Theme Support** - Light/Dark mode with customizable themes
-- 🎬 **Smooth Animations** - GSAP and Framer Motion for fluid transitions
-- 📱 **Mobile-First** - Fully responsive across all device sizes
+* **Robust Architecture**
+  - MongoDB Atlas for persistent storage
+  - Redis for real-time caching
+  - WebSocket for live updates
+  - FastAPI backend services
 
-### Technical Features
-- 📊 **Real-time Metrics** - Performance monitoring and error tracking
-- 🔄 **State Management** - Efficient React hooks and context usage
-- 🔗 **Tool Integration** - Extensible system for adding new AI capabilities
-- 📡 **WebSocket Support** - Real-time bidirectional communication
+* **Beautiful UI/UX**
+  - Tokyo Night theme
+  - Responsive design
+  - Animated transitions
+  - Real-time updates
+  - Tool usage visualization
+
+* **Enterprise Features**
+  - Session management
+  - User authentication
+  - Tool authorization
+  - Persistent storage
+  - Performance monitoring
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+
-- Python 3.8+
-- MongoDB Atlas Account
-- Redis Server
-- Google AI API Key
-
-### Environment Setup
-
-1. **Clone the Repository**
 ```bash
-git clone https://github.com/yourusername/luna-version-x.git
+# Required software
+Node.js 18+
+Python 3.8+
+MongoDB Atlas Account
+Redis Server
+Google AI API Key
+```
+
+### Installation
+
+1. **Clone Repository**
+```bash
+git clone https://github.com/Terminal127/luna-version-x.git
 cd luna-version-x
 ```
 
@@ -57,7 +91,7 @@ cd luna-version-x
 cd frontend
 npm install
 cp .env.example .env.local
-# Configure your environment variables
+# Configure environment variables
 ```
 
 3. **Backend Setup**
@@ -67,49 +101,31 @@ python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# Configure your environment variables
+# Configure environment variables
 ```
 
-4. **Database Configuration**
+4. **Start Services**
 ```bash
-# Set up MongoDB Atlas
-- Create a new cluster
-- Configure network access
-- Create database user
-- Add connection string to .env
-```
-
-### Running the Application
-
-1. **Start Backend Services**
-```bash
+# Terminal 1: Backend
 cd backend/langgraph
 ./run-backend.sh
-```
 
-2. **Launch Frontend**
-```bash
+# Terminal 2: Frontend
 cd frontend
 npm run dev
 ```
 
-The application will be available at `http://localhost:3000`
+## 🛠️ Architecture
 
-## 🏗️ Architecture
+<div align="center">
+  <img src="assets/normalflow.png" alt="Luna Architecture" width="800">
+</div>
 
-### Technology Stack
-- **Frontend**: Next.js 15, TypeScript, Tailwind CSS
-- **Backend**: FastAPI, LangChain, WebSocket
-- **Database**: MongoDB Atlas, Redis
-- **Authentication**: NextAuth.js
-- **AI Integration**: Google Generative AI, LangChain
-- **Animation**: GSAP, Framer Motion, Three.js
-- **UI Components**: Radix UI, Custom Components
+### Core Components
 
-### System Components
 1. **Frontend Layer**
-   - Next.js Application
-   - Real-time Updates
+   - Next.js 15 Application
+   - Real-time WebSocket Client
    - Tool Authorization UI
    - Session Management
 
@@ -117,68 +133,75 @@ The application will be available at `http://localhost:3000`
    - FastAPI Server
    - WebSocket Server
    - Authorization Service
-   - Tool Management
+   - Tool Management System
 
 3. **Database Layer**
    - MongoDB Atlas
      - User Sessions
      - Chat History
-     - Metadata Storage
+     - Tool Configurations
    - Redis
+     - Real-time Caching
      - Tool Authorization
-     - Temporary Storage
 
-## 🔐 Security
+## ⚡ Available Commands
 
-- 🔒 **Authentication**: JWT-based with NextAuth.js
-- 🛡️ **Data Protection**: End-to-end encryption for sensitive data
-- 🔑 **API Security**: Rate limiting and CORS protection
-- 🗄️ **Database Security**: MongoDB Atlas security features
-- 🚪 **Access Control**: Role-based authorization
+| Command | Action |
+|---------|--------|
+| `npm run dev` | Start frontend development server |
+| `npm run build` | Build frontend for production |
+| `./run-backend.sh` | Start backend services |
+| `./test.py` | Run backend tests |
 
-## 📊 Monitoring & Logging
+## 🔑 Environment Variables
 
-- 📈 **Performance Metrics**: Real-time system monitoring
-- 🔍 **Error Tracking**: Comprehensive error logging
-- 📊 **Analytics**: Usage statistics and patterns
-- 🚨 **Alerts**: Automated notification system
+### Frontend (.env.local)
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_WS_URL=ws://localhost:8001
+NEXT_PUBLIC_TOOL_API_BASE_URL=http://localhost:8002
+```
 
-## 🛠️ Development
+### Backend (.env)
+```env
+MODEL_API_KEY=your_google_ai_key
+MONGO_URI=your_mongodb_uri
+REDIS_HOST=localhost
+REDIS_PORT=6379
+```
 
-### Adding New Tools
-1. Create tool definition in `/backend/langgraph/tools/`
-2. Implement authorization flow if required
-3. Add frontend UI components
-4. Update tool registry
+## 🔒 Security Features
 
-### Custom Themes
-1. Define theme variables in `/frontend/styles/themes/`
-2. Add theme to theme provider
-3. Create theme switcher UI
+- JWT-based authentication
+- Tool authorization system
+- Rate limiting
+- CORS protection
+- Input validation
+- Session encryption
 
-## 📚 API Documentation
+## 📊 Monitoring
 
-- **REST API**: Available at `/api/docs`
-- **WebSocket**: Real-time event documentation
-- **Tool API**: Tool integration guidelines
+- Real-time performance metrics
+- Error tracking
+- Usage analytics
+- System health monitoring
+- Database performance
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and submission process.
-
-## 📄 License
+## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 👥 Team
 
-- **Lead Developer**: [Your Name]
+- **Lead Developer**: [Terminal127](https://github.com/Terminal127)
 - **AI Engineer**: [Name]
 - **Frontend Developer**: [Name]
 - **Backend Developer**: [Name]
@@ -186,23 +209,24 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Google Generative AI Team
-- LangChain Community
-- MongoDB Atlas Team
-- Next.js Community
-- FastAPI Team
+- [LangChain](https://github.com/langchain-ai/langchain) - AI Framework
+- [Google AI](https://ai.google.dev/) - AI Models
+- [MongoDB Atlas](https://www.mongodb.com/atlas) - Database
+- [Next.js](https://nextjs.org/) - Frontend Framework
+- [FastAPI](https://fastapi.tiangolo.com/) - Backend Framework
 
-## 📞 Support
+## 💬 Support
 
 For support, please:
-1. Check the [Documentation](docs/)
-2. Search [Issues](issues/)
-3. Create a new issue
-4. Contact support@lunaversionx.com
+1. Check our [Documentation](docs/)
+2. Search existing [Issues](issues/)
+3. Join our [Discord Community](https://discord.gg/lunaversionx)
+4. Email us at support@lunaversionx.com
 
 ---
 
 <div align="center">
-  <p>Built with ❤️ by the Luna Version X Team</p>
-  <p>Copyright © 2024 Luna Version X. All rights reserved.</p>
+  Made with ❤️ by the Luna Version X Team
+  <br>
+  Copyright © 2024 Luna Version X. All rights reserved.
 </div>
