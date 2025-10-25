@@ -1,258 +1,208 @@
-# Luna Version X 🌙
+# 🌙 Luna Version X | Next-Gen AI Chat Interface
 
-A beautiful AI chat interface powered by
+<div align="center">
+  <img src="assets/normalflow.png" alt="Luna Version X Flow" width="800px"/>
+  <p><em>Luna Version X - Advanced AI Chat Interface with Real-time Tool Integration</em></p>
+</div>
 
-with a stunning Tokyo Night theme.
+## 🌟 Overview
 
-![Luna Version X Screenshot](https://via.placeholder.com/800x400/1a1b26/7aa2f7?text=Luna+Version+X)
+Luna Version X is an enterprise-grade AI chat interface that combines cutting-edge technologies with a beautiful, responsive design. Built with Next.js 15, FastAPI, MongoDB, and LangChain, it offers a sophisticated platform for AI-powered conversations with real-time tool integration and persistent storage.
 
-## Features ✨
+<div align="center">
+  <img src="assets/mongo.png" alt="MongoDB Integration" width="600px"/>
+  <p><em>Robust Data Persistence with MongoDB Atlas Integration</em></p>
+</div>
 
-- 🎨 **Beautiful Tokyo Night Theme** - Dark, modern interface inspired by the popular VS Code theme
-- 🤖 **LangChain Integration** - Powered by LangChain for advanced AI capabilities
-- 🛠️ **Tool Usage Visualization** - See when and how AI tools are being used
-- 📱 **Responsive Design** - Works perfectly on desktop and mobile devices
-- ⚡ **Real-time Performance Metrics** - View response times and server status
-- 💾 **Local Storage** - Conversations are saved locally for persistence
-- 🎯 **Multiple Themes** - Choose between Tokyo Night, Dark, and Light themes
-- 🔄 **Session Management** - Proper conversation handling with the server
-- ⌨️ **Keyboard Shortcuts** - Enhanced UX with Ctrl+Enter to send, Escape to cancel
+## ✨ Key Features
 
-## Architecture 🏗️
+### Core Capabilities
+- 🤖 **Advanced AI Integration** - Powered by Google's Generative AI through LangChain
+- 🔄 **Real-time Updates** - WebSocket-based thought process visualization
+- 🛠️ **Dynamic Tool System** - Interactive tool authorization and execution
+- 💾 **Persistent Storage** - MongoDB Atlas for reliable data management
+- 🔐 **Secure Authentication** - NextAuth.js with robust session management
 
-The system consists of two main components:
+### User Interface
+- 🎨 **Modern Design** - Clean, intuitive interface with responsive layouts
+- 🌓 **Theme Support** - Light/Dark mode with customizable themes
+- 🎬 **Smooth Animations** - GSAP and Framer Motion for fluid transitions
+- 📱 **Mobile-First** - Fully responsive across all device sizes
 
-1. **LangChain Server** (`/langchain/`) - FastAPI backend that handles AI interactions
-2. **Chat Client** (`/chatgpt-clone/`) - Beautiful web interface for chatting
+### Technical Features
+- 📊 **Real-time Metrics** - Performance monitoring and error tracking
+- 🔄 **State Management** - Efficient React hooks and context usage
+- 🔗 **Tool Integration** - Extensible system for adding new AI capabilities
+- 📡 **WebSocket Support** - Real-time bidirectional communication
 
-## Quick Start 🚀
+## 🚀 Quick Start
 
 ### Prerequisites
-
+- Node.js 18+
 - Python 3.8+
-- Node.js (for any additional tooling, optional)
-- A Gemini API key (or configure your preferred LLM)
+- MongoDB Atlas Account
+- Redis Server
+- Google AI API Key
 
-### 1. Setup the LangChain Server
+### Environment Setup
 
+1. **Clone the Repository**
 ```bash
-# Navigate to the langchain directory
-cd luna-version-x/langchain
+git clone https://github.com/yourusername/luna-version-x.git
+cd luna-version-x
+```
 
-# Install dependencies
+2. **Frontend Setup**
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+# Configure your environment variables
+```
+
+3. **Backend Setup**
+```bash
+cd backend/langgraph
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# Set up your environment variables
 cp .env.example .env
-# Edit .env and add your MODEL_API_KEY
-
-# Start the server
-python api_server.py
+# Configure your environment variables
 ```
 
-The server will start at `http://localhost:8000`
-
-### 2. Setup the Chat Client
-
+4. **Database Configuration**
 ```bash
-# Navigate to the client directory
-cd luna-version-x/chatgpt-clone
-
-# Start the client server
-python server.py
+# Set up MongoDB Atlas
+- Create a new cluster
+- Configure network access
+- Create database user
+- Add connection string to .env
 ```
 
-The client will start at `http://localhost:3000` and should open automatically in your browser.
+### Running the Application
 
-## Configuration ⚙️
-
-### Environment Variables
-
-Create a `.env` file in the `langchain` directory:
-
-```env
-MODEL_API_KEY=your_gemini_api_key_here
-APP_NAME=Luna Version X
-PORT=8000
-UVICORN_RELOAD=false
-```
-
-### Server Configuration
-
-The LangChain server can be configured by editing `langchain/api_server.py`:
-
-- **Models**: Configure which AI models to use
-- **Tools**: Add or remove available tools
-- **CORS**: Adjust CORS settings for production
-- **Rate Limiting**: Add rate limiting if needed
-
-### Client Configuration
-
-The client can be configured in `chatgpt-clone/client/js/chat.js`:
-
-```javascript
-// Langchain server configuration
-const LANGCHAIN_API_BASE = "http://localhost:8000/api";
-```
-
-## API Endpoints 📡
-
-### LangChain Server
-
-- `POST /api/chat` - Send a chat message
-- `POST /api/session` - Create a new session
-- `GET /api/session/{id}/history` - Get session history
-- `GET /health` - Server health check
-
-### Example Request
-
+1. **Start Backend Services**
 ```bash
-curl -X POST "http://localhost:8000/api/chat" \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello, how are you?"}'
+cd backend/langgraph
+./run-backend.sh
 ```
 
-## Features in Detail 🔍
-
-### Tokyo Night Theme
-
-The interface uses a carefully crafted Tokyo Night color palette:
-
-- **Background**: Deep blues and purples (#1a1b26, #24283b)
-- **Accents**: Bright blues, purples, and cyans (#7aa2f7, #bb9af7, #7dcfff)
-- **Text**: High contrast whites and grays for readability
-- **Syntax Highlighting**: Matching code highlighting for consistency
-
-### Tool Usage Visualization
-
-When the AI uses tools, you'll see:
-
-- 🔧 Tool name and execution time
-- ✅/❌ Success/failure indicators
-- 📊 Performance metrics
-- 🔍 Output previews
-
-### Responsive Design
-
-The interface adapts to different screen sizes:
-
-- **Desktop**: Full sidebar with conversation history
-- **Mobile**: Collapsible sidebar with touch-friendly controls
-- **Tablet**: Optimized layout for medium screens
-
-## Development 💻
-
-### Project Structure
-
-```
-luna-version-x/
-├── langchain/              # LangChain server
-│   ├── api_server.py       # FastAPI server
-│   ├── new.py             # Agent configuration
-│   └── requirements.txt   # Python dependencies
-└── chatgpt-clone/         # Chat client
-    ├── client/            # Static files
-    │   ├── css/          # Stylesheets
-    │   ├── js/           # JavaScript
-    │   ├── html/         # HTML templates
-    │   └── img/          # Images
-    └── server.py         # Static file server
+2. **Launch Frontend**
+```bash
+cd frontend
+npm run dev
 ```
 
-### Adding New Themes
+The application will be available at `http://localhost:3000`
 
-1. Add CSS variables in `client/css/style.css`:
+## 🏗️ Architecture
 
-```css
-.my-theme {
-    --bg-primary: #your-color;
-    --fg-primary: #your-color;
-    /* ... more variables */
-}
-```
+### Technology Stack
+- **Frontend**: Next.js 15, TypeScript, Tailwind CSS
+- **Backend**: FastAPI, LangChain, WebSocket
+- **Database**: MongoDB Atlas, Redis
+- **Authentication**: NextAuth.js
+- **AI Integration**: Google Generative AI, LangChain
+- **Animation**: GSAP, Framer Motion, Three.js
+- **UI Components**: Radix UI, Custom Components
 
-2. Add theme option in `client/html/index.html`:
+### System Components
+1. **Frontend Layer**
+   - Next.js Application
+   - Real-time Updates
+   - Tool Authorization UI
+   - Session Management
 
-```html
-<input type="radio" title="My Theme" id="my-theme" name="theme" />
-```
+2. **Backend Services**
+   - FastAPI Server
+   - WebSocket Server
+   - Authorization Service
+   - Tool Management
+
+3. **Database Layer**
+   - MongoDB Atlas
+     - User Sessions
+     - Chat History
+     - Metadata Storage
+   - Redis
+     - Tool Authorization
+     - Temporary Storage
+
+## 🔐 Security
+
+- 🔒 **Authentication**: JWT-based with NextAuth.js
+- 🛡️ **Data Protection**: End-to-end encryption for sensitive data
+- 🔑 **API Security**: Rate limiting and CORS protection
+- 🗄️ **Database Security**: MongoDB Atlas security features
+- 🚪 **Access Control**: Role-based authorization
+
+## 📊 Monitoring & Logging
+
+- 📈 **Performance Metrics**: Real-time system monitoring
+- 🔍 **Error Tracking**: Comprehensive error logging
+- 📊 **Analytics**: Usage statistics and patterns
+- 🚨 **Alerts**: Automated notification system
+
+## 🛠️ Development
 
 ### Adding New Tools
+1. Create tool definition in `/backend/langgraph/tools/`
+2. Implement authorization flow if required
+3. Add frontend UI components
+4. Update tool registry
 
-1. Configure tools in `langchain/new.py`
-2. The client will automatically show tool usage
-3. Tool events include timing and success/failure info
+### Custom Themes
+1. Define theme variables in `/frontend/styles/themes/`
+2. Add theme to theme provider
+3. Create theme switcher UI
 
-## Troubleshooting 🔧
+## 📚 API Documentation
 
-### Common Issues
+- **REST API**: Available at `/api/docs`
+- **WebSocket**: Real-time event documentation
+- **Tool API**: Tool integration guidelines
 
-1. **Server won't start**: Check if port 8000 is available
-2. **Client can't connect**: Ensure the LangChain server is running
-3. **API key issues**: Verify your `.env` file configuration
-4. **CORS errors**: Check the CORS configuration in the server
-
-### Logs and Debugging
-
-- Server logs appear in the terminal where you ran `api_server.py`
-- Client logs appear in the browser's developer console
-- Check the Network tab for API request/response details
-
-## Production Deployment 🌐
-
-### LangChain Server
-
-For production deployment:
-
-1. Use a proper WSGI server like Gunicorn:
-   ```bash
-   gunicorn api_server:app -w 4 -k uvicorn.workers.UvicornWorker
-   ```
-
-2. Set up a reverse proxy (nginx, Apache)
-3. Configure environment variables securely
-4. Set up proper logging and monitoring
-
-### Chat Client
-
-For production:
-
-1. Use a proper web server (nginx, Apache)
-2. Enable HTTPS
-3. Optimize assets (minification, compression)
-4. Configure proper caching headers
-
-## Contributing 🤝
-
-We welcome contributions! Please:
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
-## License 📄
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and submission process.
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+## 📄 License
 
-## Acknowledgments 🙏
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-- **Tokyo Night Theme** - Inspired by the VS Code theme
-- **LangChain** - For the powerful AI framework
-- **FontAwesome** - For the beautiful icons
-- **Highlight.js** - For syntax highlighting
+## 👥 Team
 
-## Support 💬
+- **Lead Developer**: [Your Name]
+- **AI Engineer**: [Name]
+- **Frontend Developer**: [Name]
+- **Backend Developer**: [Name]
+- **DevOps Engineer**: [Name]
 
-If you encounter any issues or have questions:
+## 🙏 Acknowledgments
 
-1. Check the troubleshooting section
-2. Look at existing issues in the repository
-3. Create a new issue with detailed information
-4. Join our community discussions
+- Google Generative AI Team
+- LangChain Community
+- MongoDB Atlas Team
+- Next.js Community
+- FastAPI Team
+
+## 📞 Support
+
+For support, please:
+1. Check the [Documentation](docs/)
+2. Search [Issues](issues/)
+3. Create a new issue
+4. Contact support@lunaversionx.com
 
 ---
 
-**Made with ❤️ and 🌙 by the Luna Version X team**
-# luna-v-x
+<div align="center">
+  <p>Built with ❤️ by the Luna Version X Team</p>
+  <p>Copyright © 2024 Luna Version X. All rights reserved.</p>
+</div>
