@@ -30,11 +30,11 @@ A next-generation AI chat interface powered by LangChain and Google's Generative
         <img src="assets/screenshot-2025-10-25_23-31-52.png" alt="Luna Version X Interface">
       </td>
     </tr>
-    <tr>
+    <!--<tr>
       <td align="center">
         <img src="assets/mongo.png" alt="MongoDB Integration">
       </td>
-    </tr>
+    </tr>-->
   </table>
 </div>
 
@@ -116,9 +116,19 @@ npm run dev
 ```
 
 ## 🛠️ Architecture
-
 <div align="center">
-  <img src="assets/normalflow.png" alt="Luna Architecture" width="800">
+      <table>
+        <tr>
+          <td align="center">
+            <img src="assets/normalflow.png" alt="Luna Version X Interface">
+          </td>
+        </tr>
+        <tr>
+          <td align="center">
+            <img src="assets/mongo.png" alt="MongoDB Integration">
+          </td>
+        </tr>
+      </table>
 </div>
 
 ### Core Components
