@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="assets/logo.png" width="500" height="auto">
+    <img src="assets/logo.png" width="800" height="auto">
     <br><br>
     <a href="https://github.com/Terminal127/luna-version-x/commits">
         <img src="https://img.shields.io/github/last-commit/Terminal127/luna-version-x?&style=for-the-badge&logo=git&color=7aa2f7&logoColor=c0caf5&labelColor=1a1b26" alt="Last Commit">
